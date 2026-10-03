@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Linting
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environment, Databases, and Secrets
+.env
+.env.local
+*.db
+*.sqlite3
+
+# Project artifacts (keep reports/ tracked except large binaries)
+/data/
+/models/*
+!/models/registry.json
+*.parquet
+goldentimes_synthetic_dataset/
+
+# Node / UI
+node_modules/
+ui/node_modules/
+ui/dist/
+
+# OS
+.DS_Store
