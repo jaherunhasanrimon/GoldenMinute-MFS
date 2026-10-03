@@ -1,0 +1,54 @@
+RECIPIENT_NEW:
+  en: "This number is new on upay."
+  bn: "এই নম্বরটি upay-তে নতুন।"
+RECIPIENT_FAN_IN_BURST:
+  en: "Many people sent money to this number for the first time in a short time."
+  bn: "অল্প সময়ে অনেকে প্রথমবার এই নম্বরে টাকা পাঠিয়েছেন।"
+RECIPIENT_FAST_PASS_THROUGH:
+  en: "This number usually moves received money out within minutes."
+  bn: "এই নম্বরটি টাকা পাওয়ার কয়েক মিনিটের মধ্যেই তা সরিয়ে ফেলে।"
+AMOUNT_UNUSUAL_FOR_SENDER:
+  en: "This amount is much larger than you usually send."
+  bn: "এই পরিমাণ আপনার সাধারণ লেনদেনের তুলনায় অনেক বেশি।"
+DEVICE_OR_PIN_CHANGE_RECENT:
+  en: "Your PIN or device changed recently."
+  bn: "সম্প্রতি আপনার পিন বা ডিভাইস পরিবর্তন হয়েছে।"
+FIRST_TIME_PAIR:
+  en: "This is your first time sending money to this recipient."
+  bn: "এই প্রাপককে আপনি প্রথমবার টাকা পাঠাচ্ছেন।"
+RING_LINK:
+  en: "This recipient is linked to a network of suspicious transactions."
+  bn: "এই প্রাপকটি সন্দেহজনক লেনদেন নেটওয়ার্কের সাথে সম্পর্কিত।"
+SAFE_ACTION_HINT:
+  en: "Before sending, call the person on a number you already have."
+  bn: "পাঠানোর আগে আপনার জানা নম্বরে সরাসরি ফোন করে নিশ্চিত হয়ে নিন।"
+
+feature_mappings:
+  amount_to_median_ratio: AMOUNT_UNUSUAL_FOR_SENDER
+  sender_txn_count_1h: AMOUNT_UNUSUAL_FOR_SENDER
+  sender_txn_count_24h: AMOUNT_UNUSUAL_FOR_SENDER
+  sender_amount_sum_24h: AMOUNT_UNUSUAL_FOR_SENDER
+  sender_tenure_days: DEVICE_OR_PIN_CHANGE_RECENT
+  balance_drain_ratio: AMOUNT_UNUSUAL_FOR_SENDER
+  hour_of_day: AMOUNT_UNUSUAL_FOR_SENDER
+  is_night: AMOUNT_UNUSUAL_FOR_SENDER
+  is_first_time_pair: FIRST_TIME_PAIR
+  pair_history_count: FIRST_TIME_PAIR
+  new_device_flag: DEVICE_OR_PIN_CHANGE_RECENT
+  minutes_since_pin_reset: DEVICE_OR_PIN_CHANGE_RECENT
+  minutes_since_sim_change: DEVICE_OR_PIN_CHANGE_RECENT
+  session_seconds: DEVICE_OR_PIN_CHANGE_RECENT
+  recipient_age_days: RECIPIENT_NEW
+  recipient_owner_type_code: RING_LINK
+  recipient_unique_senders_1h: RECIPIENT_FAN_IN_BURST
+  recipient_unique_senders_24h: RECIPIENT_FAN_IN_BURST
+  recipient_first_time_sender_share_24h: RECIPIENT_FAN_IN_BURST
+  recipient_inflow_24h: RECIPIENT_FAN_IN_BURST
+  recipient_outflow_24h: RECIPIENT_FAST_PASS_THROUGH
+  recipient_pass_through_ratio_24h: RECIPIENT_FAST_PASS_THROUGH
+  recipient_median_receipt_to_out_minutes: RECIPIENT_FAST_PASS_THROUGH
+  recipient_fan_in_7d: RECIPIENT_FAN_IN_BURST
+  recipient_fan_out_7d: RECIPIENT_FAST_PASS_THROUGH
+  shared_device_wallet_count: RING_LINK
+  component_size_7d: RING_LINK
+  two_hop_confirmed_mule_share: RING_LINK

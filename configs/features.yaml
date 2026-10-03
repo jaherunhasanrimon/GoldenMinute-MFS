@@ -1,0 +1,8 @@
+graph_window_days: 7
+amount_norm_window_days: 30
+rapid_cashout_minutes: 10
+hour_window_1h: 1
+hour_window_24h: 24
+balance_drain_threshold: 0.8
+pin_reset_recent_minutes: 60
+sim_change_recent_minutes: 60

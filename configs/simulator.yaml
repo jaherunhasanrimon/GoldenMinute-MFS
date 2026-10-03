@@ -1,0 +1,75 @@
+seed: 42
+
+profiles:
+  small:
+    customers: 2000
+    agents: 40
+    merchants: 100
+    days: 30
+    target_fraud_rate: 0.005
+    min_typology_positives: 30
+  full:
+    customers: 20000
+    agents: 400
+    merchants: 1500
+    days: 90
+    target_fraud_rate: 0.004
+    min_typology_positives: 300
+
+personas:
+  salaried:
+    weight: 0.40
+    median_amount: 3500.0
+    amount_std: 1500.0
+    txns_per_week: 4
+    cashout_rate: 0.35
+  student:
+    weight: 0.25
+    median_amount: 800.0
+    amount_std: 400.0
+    txns_per_week: 3
+    cashout_rate: 0.20
+  small_trader:
+    weight: 0.20
+    median_amount: 7500.0
+    amount_std: 3500.0
+    txns_per_week: 15
+    cashout_rate: 0.60
+  remittance_receiver:
+    weight: 0.15
+    median_amount: 14000.0
+    amount_std: 6000.0
+    txns_per_week: 2
+    cashout_rate: 0.80
+
+seasonality:
+  weekend_factor: 1.25
+  festival_spike_factor: 1.60
+  festival_days: [15, 30, 60, 75]
+
+typologies:
+  impersonation_scam:
+    amount_min: 15000.0
+    amount_max: 35000.0
+    session_seconds_max: 45
+    rapid_cashout_window_min: 15
+  mule_ring:
+    ring_size_min: 5
+    ring_size_max: 15
+    pass_through_ratio_min: 0.85
+    shared_device_prob: 0.65
+  sim_swap_takeover:
+    pre_drain_auth_window_min: 45
+    drain_balance_ratio_min: 0.80
+  card_to_wallet_burst:
+    card_burst_count_min: 4
+    card_burst_window_min: 20
+    drain_window_min: 30
+  agent_collusion:
+    amount_structuring_threshold: 24500.0
+    structured_amount_max: 24900.0
+    agent_repeat_ratio: 0.85
+
+confirmation_lag_hours: 24
+detection_rate: 0.80
+held_out_typology: agent_collusion

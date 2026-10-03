@@ -1,0 +1,25 @@
+rules:
+  r1_recipient_age_days: 3
+  r1_amount_threshold: 10000
+  r2_balance_drain_ratio: 0.8
+  r3_auth_recent_minutes: 60
+  r3_amount_threshold: 15000
+  r4_unique_senders_1h: 5
+  r4_first_time_share: 0.6
+  r5_rapid_cashout_count: 3
+  r5_window_minutes: 10
+
+risk_lgbm:
+  n_estimators: 300
+  learning_rate: 0.05
+  num_leaves: 31
+  class_weight: "balanced"
+  random_state: 42
+
+anomaly_iforest:
+  n_estimators: 150
+  contamination: 0.01
+  random_state: 42
+
+fusion:
+  regularization_c: 1.0

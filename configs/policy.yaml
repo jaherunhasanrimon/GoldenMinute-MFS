@@ -1,0 +1,55 @@
+version: "0.1"
+actions:
+  - allow
+  - warn
+  - verify
+  - hold
+effectiveness:
+  allow: 0.0
+  warn: 0.25
+  verify: 0.55
+  hold: 0.90
+friction_cost_bdt:
+  allow: 0
+  warn: 5
+  verify: 30
+  hold: 200
+min_amount_bdt_for_intervention: 300
+hold_capacity_per_hour: 20
+golden_window_minutes: 30
+hard_rules:
+  - recipient_blocklisted
+sensitivity:
+  conservative:
+    effectiveness:
+      allow: 0.0
+      warn: 0.15
+      verify: 0.40
+      hold: 0.75
+    friction_cost_bdt:
+      allow: 0
+      warn: 10
+      verify: 60
+      hold: 350
+  baseline:
+    effectiveness:
+      allow: 0.0
+      warn: 0.25
+      verify: 0.55
+      hold: 0.90
+    friction_cost_bdt:
+      allow: 0
+      warn: 5
+      verify: 30
+      hold: 200
+  optimistic:
+    effectiveness:
+      allow: 0.0
+      warn: 0.40
+      verify: 0.70
+      hold: 0.98
+    friction_cost_bdt:
+      allow: 0
+      warn: 2
+      verify: 15
+      hold: 100
