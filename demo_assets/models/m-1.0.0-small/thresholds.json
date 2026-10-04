@@ -1,0 +1,8 @@
+{
+  "threshold_1pct_ffr_variant_b": 0.5,
+  "threshold_1pct_ffr_variant_c": 0.5,
+  "threshold_1pct_ffr_variant_d": 0.5,
+  "hold_threshold": 0.5,
+  "verify_threshold": 0.375,
+  "warn_threshold": 0.25
+}

@@ -1,0 +1,34 @@
+{
+  "active_version": "m-1.0.0-small",
+  "versions": {
+    "m-1.0.0-small": {
+      "version": "m-1.0.0-small",
+      "profile": "small",
+      "seed": 42,
+      "trained_at": "2026-10-03T19:41:17.829562+00:00",
+      "config_hash": "86b9523a54e5bc76",
+      "held_out_typology": "agent_collusion",
+      "training_rows": 16180,
+      "validation_rows": 4037,
+      "test_rows": 3993,
+      "features_count": 28,
+      "artifacts": {
+        "variant_b_lgbm": "models/m-1.0.0-small/variant_b_lgbm.joblib",
+        "variant_b_calibrator": "models/m-1.0.0-small/variant_b_calibrator.joblib",
+        "variant_c_lgbm": "models/m-1.0.0-small/variant_c_lgbm.joblib",
+        "variant_c_calibrator": "models/m-1.0.0-small/variant_c_calibrator.joblib",
+        "anomaly_iforest": "models/m-1.0.0-small/anomaly_iforest.joblib",
+        "fusion_model": "models/m-1.0.0-small/fusion_model.joblib",
+        "thresholds": "models/m-1.0.0-small/thresholds.json"
+      },
+      "thresholds": {
+        "threshold_1pct_ffr_variant_b": 0.5,
+        "threshold_1pct_ffr_variant_c": 0.5,
+        "threshold_1pct_ffr_variant_d": 0.5,
+        "hold_threshold": 0.5,
+        "verify_threshold": 0.375,
+        "warn_threshold": 0.25
+      }
+    }
+  }
+}
