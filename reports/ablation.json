@@ -1,0 +1,99 @@
+{
+  "ablation_table": [
+    {
+      "variant": "A",
+      "name": "Rules baseline",
+      "status": "evaluated",
+      "pr_auc": 0.114,
+      "roc_auc": 0.8684,
+      "ffr": 0.0494,
+      "value_weighted_recall": 0.5436,
+      "held_out_recall": 1.0,
+      "precision_at_50": 0.58,
+      "brier_score": 0.0267,
+      "ece": 0.0351,
+      "p50_latency_ms": 1.21,
+      "p95_latency_ms": 1.28,
+      "typology_recalls": {
+        "agent_collusion": 1.0,
+        "card_to_wallet_burst": 0.058823529411764705,
+        "impersonation_scam": 0.22988505747126436,
+        "mule_ring": 0.11764705882352941,
+        "sim_swap_takeover": 0.4482758620689655
+      }
+    },
+    {
+      "variant": "B",
+      "name": "LightGBM (no graph)",
+      "status": "evaluated",
+      "pr_auc": 0.9935,
+      "roc_auc": 0.9968,
+      "ffr": 0.0,
+      "value_weighted_recall": 0.9897,
+      "held_out_recall": 0.9836,
+      "precision_at_50": 1.0,
+      "brier_score": 0.0,
+      "ece": 0.0,
+      "p50_latency_ms": 0.59,
+      "p95_latency_ms": 0.73,
+      "typology_recalls": {
+        "agent_collusion": 0.9836065573770492,
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.9885057471264368,
+        "mule_ring": 1.0,
+        "sim_swap_takeover": 1.0
+      }
+    },
+    {
+      "variant": "C",
+      "name": "LightGBM + Graph",
+      "status": "evaluated",
+      "pr_auc": 0.9935,
+      "roc_auc": 0.9968,
+      "ffr": 0.0,
+      "value_weighted_recall": 0.9897,
+      "held_out_recall": 0.9836,
+      "precision_at_50": 1.0,
+      "brier_score": 0.0,
+      "ece": 0.0,
+      "p50_latency_ms": 0.6,
+      "p95_latency_ms": 0.75,
+      "typology_recalls": {
+        "agent_collusion": 0.9836065573770492,
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.9885057471264368,
+        "mule_ring": 1.0,
+        "sim_swap_takeover": 1.0
+      }
+    },
+    {
+      "variant": "D",
+      "name": "Fused (C + Anomaly)",
+      "status": "evaluated",
+      "pr_auc": 0.9955,
+      "roc_auc": 0.9999,
+      "ffr": 0.0,
+      "value_weighted_recall": 0.9897,
+      "held_out_recall": 0.9836,
+      "precision_at_50": 1.0,
+      "brier_score": 0.0,
+      "ece": 0.0,
+      "p50_latency_ms": 5.82,
+      "p95_latency_ms": 6.3,
+      "typology_recalls": {
+        "agent_collusion": 0.9836065573770492,
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.9885057471264368,
+        "mule_ring": 1.0,
+        "sim_swap_takeover": 1.0
+      }
+    }
+  ],
+  "champion_variant": "D",
+  "held_out_typology": "agent_collusion",
+  "held_out_recall_champion": 0.9836,
+  "evaluated_at": "2026-10-03T19:42:24.150665+00:00",
+  "profile": "full",
+  "test_transactions": 120577,
+  "test_fraud": 308
+}

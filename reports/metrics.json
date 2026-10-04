@@ -1,0 +1,184 @@
+{
+  "fraud_value_intercepted_bdt": 4213684.008,
+  "false_friction_rate": 0.0,
+  "median_decision_time_ms": 10.14,
+  "p95_decision_time_ms": 11.21,
+  "ablation_table": [
+    {
+      "variant": "A",
+      "name": "Rules baseline",
+      "status": "evaluated",
+      "pr_auc": 0.114,
+      "roc_auc": 0.8684,
+      "ffr": 0.0494,
+      "value_weighted_recall": 0.5436,
+      "held_out_recall": 1.0,
+      "precision_at_50": 0.58,
+      "brier_score": 0.0267,
+      "ece": 0.0351,
+      "p50_latency_ms": 1.21,
+      "p95_latency_ms": 1.28,
+      "typology_recalls": {
+        "agent_collusion": 1.0,
+        "card_to_wallet_burst": 0.058823529411764705,
+        "impersonation_scam": 0.22988505747126436,
+        "mule_ring": 0.11764705882352941,
+        "sim_swap_takeover": 0.4482758620689655
+      }
+    },
+    {
+      "variant": "B",
+      "name": "LightGBM (no graph)",
+      "status": "evaluated",
+      "pr_auc": 0.9935,
+      "roc_auc": 0.9968,
+      "ffr": 0.0,
+      "value_weighted_recall": 0.9897,
+      "held_out_recall": 0.9836,
+      "precision_at_50": 1.0,
+      "brier_score": 0.0,
+      "ece": 0.0,
+      "p50_latency_ms": 0.59,
+      "p95_latency_ms": 0.73,
+      "typology_recalls": {
+        "agent_collusion": 0.9836065573770492,
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.9885057471264368,
+        "mule_ring": 1.0,
+        "sim_swap_takeover": 1.0
+      }
+    },
+    {
+      "variant": "C",
+      "name": "LightGBM + Graph",
+      "status": "evaluated",
+      "pr_auc": 0.9935,
+      "roc_auc": 0.9968,
+      "ffr": 0.0,
+      "value_weighted_recall": 0.9897,
+      "held_out_recall": 0.9836,
+      "precision_at_50": 1.0,
+      "brier_score": 0.0,
+      "ece": 0.0,
+      "p50_latency_ms": 0.6,
+      "p95_latency_ms": 0.75,
+      "typology_recalls": {
+        "agent_collusion": 0.9836065573770492,
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.9885057471264368,
+        "mule_ring": 1.0,
+        "sim_swap_takeover": 1.0
+      }
+    },
+    {
+      "variant": "D",
+      "name": "Fused (C + Anomaly)",
+      "status": "evaluated",
+      "pr_auc": 0.9955,
+      "roc_auc": 0.9999,
+      "ffr": 0.0,
+      "value_weighted_recall": 0.9897,
+      "held_out_recall": 0.9836,
+      "precision_at_50": 1.0,
+      "brier_score": 0.0,
+      "ece": 0.0,
+      "p50_latency_ms": 5.82,
+      "p95_latency_ms": 6.3,
+      "typology_recalls": {
+        "agent_collusion": 0.9836065573770492,
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.9885057471264368,
+        "mule_ring": 1.0,
+        "sim_swap_takeover": 1.0
+      }
+    }
+  ],
+  "held_out_typology_recall": 0.9836,
+  "typology_recalls": {
+    "agent_collusion": 0.9836065573770492,
+    "card_to_wallet_burst": 1.0,
+    "impersonation_scam": 0.9885057471264368,
+    "mule_ring": 1.0,
+    "sim_swap_takeover": 1.0
+  },
+  "fairness_slices": {
+    "age_band": {
+      "senior": {
+        "count": 46332,
+        "ffr": 0.0,
+        "recall": 0.9911504424778761
+      },
+      "middle": {
+        "count": 58562,
+        "ffr": 0.0,
+        "recall": 0.9917355371900827
+      },
+      "young": {
+        "count": 15641,
+        "ffr": 0.0,
+        "recall": 1.0
+      },
+      "unknown": {
+        "count": 42,
+        "ffr": 0.0,
+        "recall": 1.0
+      }
+    },
+    "region_type": {
+      "urban": {
+        "count": 53600,
+        "ffr": 0.0,
+        "recall": 0.9919354838709677
+      },
+      "semi_urban": {
+        "count": 42745,
+        "ffr": 0.0,
+        "recall": 0.989247311827957
+      },
+      "rural": {
+        "count": 24190,
+        "ffr": 0.0,
+        "recall": 1.0
+      },
+      "unknown": {
+        "count": 42,
+        "ffr": 0.0,
+        "recall": 1.0
+      }
+    },
+    "tenure_bucket": {
+      "1m+": {
+        "count": 120535,
+        "ffr": 0.0,
+        "recall": 0.9924812030075187
+      },
+      "<1w": {
+        "count": 42,
+        "ffr": 0.0,
+        "recall": 1.0
+      }
+    }
+  },
+  "sensitivity_grid": [
+    {
+      "effectiveness_scenario": "conservative",
+      "hold_eff": 0.75,
+      "verify_eff": 0.4,
+      "intercepted_bdt": 3511403.34
+    },
+    {
+      "effectiveness_scenario": "baseline",
+      "hold_eff": 0.9,
+      "verify_eff": 0.55,
+      "intercepted_bdt": 4213684.008
+    },
+    {
+      "effectiveness_scenario": "optimistic",
+      "hold_eff": 0.98,
+      "verify_eff": 0.7,
+      "intercepted_bdt": 4588233.697600001
+    }
+  ],
+  "total_scored": 120577,
+  "total_alerts": 306
+}
