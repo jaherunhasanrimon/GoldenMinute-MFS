@@ -39,7 +39,12 @@ def run_evaluation(profile: str = "small") -> Dict[str, Any]:
     if active_meta and "artifacts" in active_meta:
         logger.info(f"Active model version '{active_meta.get('version')}' found in registry. Running full ablation...")
         from goldenminutes.eval.ablation import run_ablation
-        return run_ablation(profile=profile)
+        summary = run_ablation(profile=profile)
+        if "variant_e_lgbm" in active_meta["artifacts"]:
+            from goldenminutes.eval.lift import run_lift_analysis
+            logger.info("Variant E found. Running paired-bootstrap lift analysis...")
+            run_lift_analysis(profile=profile)
+        return summary
 
     repo_root = Path(__file__).resolve().parents[3]
     raw_dir = repo_root / "data" / "raw" / profile

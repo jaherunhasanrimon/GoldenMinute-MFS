@@ -53,9 +53,11 @@ class FusionModel:
         logger.info(f"Fitting FusionModel on {len(y_val):,} validation instances...")
         X_val_fused = self.transform_features(p_lgbm_val, anomaly_val, rules_val)
 
+        # No class_weight="balanced": the policy engine treats this output as a
+        # calibrated probability (expected loss = p * amount). Balanced weighting
+        # shifts the prior to 50/50 and inflates every score at a ~0.5% base rate.
         self.model = LogisticRegression(
             C=self.regularization_c,
-            class_weight="balanced",
             random_state=self.random_state,
             max_iter=1000,
         )

@@ -1,8 +1,19 @@
-"""Ablation study generator for GoldenMinutes (Variants A, B, C, D).
+"""Ablation study generator for GoldenMinutes (Variants A-F).
 
-Evaluates all four variants side by side on the held-out test split,
+Evaluates all variants side by side on the held-out test split,
 computes PR-AUC, value-weighted recall at FFR cap, precision at K,
 held-out typology recall, calibration, and latency, and writes reports/ablation.json.
+
+Variants:
+    A  rules baseline
+    B  LightGBM, no graph features
+    C  LightGBM + NetworkX graph features
+    D  fusion(C, anomaly, rules)
+    E  fusion(LightGBM + graph + GNN features, anomaly, rules)  <- champion
+    F  GNN recipient mule score alone (diagnostic only)
+
+Primary population (Phase 1, F6): only transaction types accepted by /v1/score
+(``send_money``). Other types are reported separately under ``other_types``.
 """
 
 from __future__ import annotations
@@ -41,6 +52,8 @@ from goldenminutes.rules.baseline import RulesBaseline
 
 logger = logging.getLogger("goldenminutes.eval.ablation")
 
+SCORED_TXN_TYPES = ("send_money",)
+
 
 def run_ablation(profile: str = "full") -> Dict[str, Any]:
     """Run full ablation across Variants A, B, C, D on the held-out test split."""
@@ -70,7 +83,15 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
     calibrator_c = IsotonicCalibrator.load(artifacts["variant_c_calibrator"])
 
     anomaly_model = AnomalyIsolationForest.load(artifacts["anomaly_iforest"])
-    fusion_model = FusionModel.load(artifacts["fusion_model"])
+    has_e = "variant_e_lgbm" in artifacts and "fusion_model_d" in artifacts
+    if has_e:
+        model_e = RiskLGBM.load(artifacts["variant_e_lgbm"])
+        calibrator_e = IsotonicCalibrator.load(artifacts["variant_e_calibrator"])
+        fusion_model_e = FusionModel.load(artifacts["fusion_model"])
+        fusion_model = FusionModel.load(artifacts["fusion_model_d"])
+    else:
+        # Legacy registry (pre-Phase 1): fusion_model was trained on Variant C.
+        fusion_model = FusionModel.load(artifacts["fusion_model"])
 
     # 3. Load dataset and test split
     features_df = pd.read_parquet(features_path)
@@ -92,7 +113,14 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
     tenure_days = merged["sender_tenure_days"].values
     merged["tenure_bucket"] = np.where(tenure_days < 7, "<1w", np.where(tenure_days < 30, "1w-1m", "1m+"))
 
-    test_df = merged[merged["split"] == "test"].copy().reset_index(drop=True)
+    test_all = merged[merged["split"] == "test"].copy().reset_index(drop=True)
+    if "type" in test_all.columns:
+        scored_mask = test_all["type"].isin(SCORED_TXN_TYPES)
+        other_df = test_all[~scored_mask].copy().reset_index(drop=True)
+        test_df = test_all[scored_mask].copy().reset_index(drop=True)
+    else:
+        other_df = test_all.iloc[0:0].copy()
+        test_df = test_all
     n_test = len(test_df)
     y_test = test_df["is_fraud"].values.astype(int)
     amounts = test_df["amount_bdt"].values
@@ -128,6 +156,17 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
     scores_d = fusion_model.predict_risk(scores_c, anom_test, rules_hit_counts)
     actions_d = policy_engine.evaluate_batch(amounts, scores_d)
 
+    if has_e:
+        # --- Variant E: LightGBM + graph + GNN, fused (champion) ---
+        logger.info("Evaluating Variant E: LightGBM + Graph + GNN, fused...")
+        scores_e_lgbm = calibrator_e.predict(model_e.predict_proba(test_df))
+        scores_e = fusion_model_e.predict_risk(scores_e_lgbm, anom_test, rules_hit_counts)
+        actions_e = policy_engine.evaluate_batch(amounts, scores_e)
+
+        # --- Variant F: GNN score alone (diagnostic) ---
+        scores_f = test_df["gnn_recipient_mule_score"].fillna(0.0).values.astype(float)
+        actions_f = policy_engine.evaluate_batch(amounts, scores_f)
+
     # Measure per-sample latency distribution on a sample
     sample_size = min(300, n_test)
     sample_df = test_df.iloc[:sample_size].copy()
@@ -158,6 +197,22 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
         ("C", "LightGBM + Graph", scores_c, actions_c, p50_c, p95_c),
         ("D", "Fused (C + Anomaly)", scores_d, actions_d, p50_d, p95_d),
     ]
+    champion_code = "D"
+    actions_champion = actions_d
+    scores_champion = scores_d
+    if has_e:
+        p50_e, p95_e = _measure_latencies(
+            lambda r: fusion_model_e.predict_risk(
+                calibrator_e.predict(model_e.predict_proba(r)),
+                anomaly_model.predict_anomaly_score(r),
+                rules_engine.evaluate_batch(r)["rules_hit_count"].values.astype(float),
+            )
+        )
+        variants_data.append(("E", "Fused (C + GNN + Anomaly)", scores_e, actions_e, p50_e, p95_e))
+        variants_data.append(("F", "GNN score only (diagnostic)", scores_f, actions_f, 0.0, 0.0))
+        champion_code = "E"
+        actions_champion = actions_e
+        scores_champion = scores_e
 
     ablation_results: List[Dict[str, Any]] = []
 
@@ -200,10 +255,12 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
             "typology_recalls": typ_recalls,
         })
 
-    # Fairness slices for Variant D (champion)
-    fairness_d = compute_fairness_slices(test_df, y_test, actions_d, attributes=["age_band", "region_type", "tenure_bucket"])
+    champion_row = next(r for r in ablation_results if r["variant"] == champion_code)
 
-    # Sensitivity grid for Variant D driven by configs/policy.yaml
+    # Fairness slices for the champion
+    fairness_d = compute_fairness_slices(test_df, y_test, actions_champion, attributes=["age_band", "region_type", "tenure_bucket"])
+
+    # Sensitivity grid for the champion driven by configs/policy.yaml
     sensitivity_cfg = policy_engine.sensitivity or {
         "conservative": {
             "effectiveness": {"hold": 0.75, "verify": 0.40, "warn": 0.15, "allow": 0.0},
@@ -223,7 +280,7 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
     for scen_name, scen_params in sensitivity_cfg.items():
         eff = scen_params.get("effectiveness", policy_engine.effectiveness)
         fric = scen_params.get("friction_cost_bdt", policy_engine.friction_cost_bdt)
-        acts_scen = policy_engine.evaluate_batch(amounts, scores_d, effectiveness_override=eff, friction_override=fric)
+        acts_scen = policy_engine.evaluate_batch(amounts, scores_champion, effectiveness_override=eff, friction_override=fric)
         val = compute_expected_intercepted_value(y_test, acts_scen, amounts, effectiveness=eff)
         sensitivity_d.append({
             "effectiveness_scenario": scen_name,
@@ -232,17 +289,40 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
             "intercepted_bdt": float(val),
         })
 
-    intercepted_val_d = compute_expected_intercepted_value(y_test, actions_d, amounts, effectiveness=policy_engine.effectiveness)
+    intercepted_val_d = compute_expected_intercepted_value(y_test, actions_champion, amounts, effectiveness=policy_engine.effectiveness)
+
+    # Secondary population: transaction types /v1/score does not accept (F6).
+    other_types: Dict[str, Any] = {"types": sorted(other_df["type"].unique().tolist()) if len(other_df) else []}
+    if has_e and len(other_df) > 0:
+        y_o = other_df["is_fraud"].values.astype(int)
+        rules_o = rules_engine.evaluate_batch(other_df)["rules_hit_count"].values.astype(float)
+        s_o = fusion_model_e.predict_risk(
+            calibrator_e.predict(model_e.predict_proba(other_df)),
+            anomaly_model.predict_anomaly_score(other_df),
+            rules_o,
+        )
+        acts_o = policy_engine.evaluate_batch(other_df["amount_bdt"].values, s_o)
+        other_types.update({
+            "transactions": int(len(other_df)),
+            "fraud": int(y_o.sum()),
+            "champion_pr_auc": round(float(average_precision_score(y_o, s_o)), 4) if 0 < y_o.sum() < len(y_o) else None,
+            "champion_ffr": round(compute_false_friction_rate(y_o, acts_o), 4),
+            "champion_value_recall": round(
+                compute_value_weighted_recall(y_o, acts_o, other_df["amount_bdt"].values, target_actions=("verify", "hold")), 4
+            ),
+        })
 
     summary = {
         "ablation_table": ablation_results,
-        "champion_variant": "D",
+        "champion_variant": champion_code,
         "held_out_typology": "agent_collusion",
-        "held_out_recall_champion": ablation_results[-1]["held_out_recall"],
+        "held_out_recall_champion": champion_row["held_out_recall"],
         "evaluated_at": active_meta["trained_at"],
         "profile": profile,
+        "primary_population": list(SCORED_TXN_TYPES),
         "test_transactions": n_test,
         "test_fraud": int(y_test.sum()),
+        "other_types": other_types,
     }
 
     # Save reports/ablation.json
@@ -268,17 +348,20 @@ def run_ablation(profile: str = "full") -> Dict[str, Any]:
         median_lat = float(p50_d)
         p95_lat = float(p95_d)
 
-    total_alerts_d = int(np.sum(np.isin(actions_d, ["verify", "hold"])))
+    total_alerts_d = int(np.sum(np.isin(actions_champion, ["verify", "hold"])))
     metrics_summary = {
         "fraud_value_intercepted_bdt": float(intercepted_val_d),
-        "false_friction_rate": float(ablation_results[-1]["ffr"]),
+        "false_friction_rate": float(champion_row["ffr"]),
         "median_decision_time_ms": round(median_lat, 2),
         "p95_decision_time_ms": round(p95_lat, 2),
+        "champion_variant": champion_code,
+        "primary_population": list(SCORED_TXN_TYPES),
         "ablation_table": ablation_results,
-        "held_out_typology_recall": float(ablation_results[-1]["held_out_recall"]),
-        "typology_recalls": ablation_results[-1]["typology_recalls"],
+        "held_out_typology_recall": float(champion_row["held_out_recall"]),
+        "typology_recalls": champion_row["typology_recalls"],
         "fairness_slices": fairness_d,
         "sensitivity_grid": sensitivity_d,
+        "other_types": other_types,
         "total_scored": n_test,
         "total_alerts": total_alerts_d,
     }

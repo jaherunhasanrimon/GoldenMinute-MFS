@@ -20,7 +20,11 @@ import pandas as pd
 import yaml
 
 from goldenminutes.common.config import get_settings
-from goldenminutes.features.specs import ALL_FEATURE_NAMES, NON_GRAPH_FEATURE_NAMES
+from goldenminutes.features.specs import (
+    ALL_FEATURE_NAMES,
+    NON_GRAPH_FEATURE_NAMES,
+    VARIANT_E_FEATURE_NAMES,
+)
 from goldenminutes.models.anomaly import AnomalyIsolationForest
 from goldenminutes.models.calibration import IsotonicCalibrator
 from goldenminutes.models.fusion import FusionModel
@@ -125,7 +129,20 @@ def train_pipeline(profile: str = "full", version: Optional[str] = None) -> Dict
     model_c.save(model_dir / "variant_c_lgbm.joblib")
     calibrator_c.save(model_dir / "variant_c_calibrator.joblib")
 
-    # 6. Train Anomaly Model: Isolation Forest on legitimate training rows
+    # 6. Train Variant E: LightGBM with Graph + GNN Features
+    logger.info("--- Training Variant E: LightGBM + Graph + GNN ---")
+    model_e = RiskLGBM(feature_names=VARIANT_E_FEATURE_NAMES, params=lgbm_params, random_state=seed)
+    model_e.fit(train_df, y_train, val_df, y_val)
+    val_preds_e_raw = model_e.predict_proba(val_df)
+
+    calibrator_e = IsotonicCalibrator()
+    calibrator_e.fit(val_preds_e_raw, y_val)
+    val_preds_e = calibrator_e.predict(val_preds_e_raw)
+
+    model_e.save(model_dir / "variant_e_lgbm.joblib")
+    calibrator_e.save(model_dir / "variant_e_calibrator.joblib")
+
+    # 7. Train Anomaly Model: Isolation Forest on legitimate training rows
     logger.info("--- Training Isolation Forest Anomaly Model ---")
     anomaly_model = AnomalyIsolationForest(feature_names=ALL_FEATURE_NAMES, params=anomaly_params, random_state=seed)
     train_legit_df = train_df[y_train == 0]
@@ -134,25 +151,44 @@ def train_pipeline(profile: str = "full", version: Optional[str] = None) -> Dict
 
     anomaly_model.save(model_dir / "anomaly_iforest.joblib")
 
-    # 7. Train Variant D: Fusion Model
-    logger.info("--- Training Variant D: Fusion Stacker ---")
+    # 8. Train Fusion Models (Variant D baseline and Variant E Champion)
+    logger.info("--- Training Fusion Models ---")
     rules_engine = RulesBaseline()
     val_rules_res = rules_engine.evaluate_batch(val_df)
     val_rules_hit_counts = val_rules_res["rules_hit_count"].values.astype(float)
 
-    fusion_model = FusionModel(regularization_c=fusion_cfg.get("regularization_c", 1.0), random_state=seed)
-    fusion_model.fit(val_preds_c, val_anom_scores, val_rules_hit_counts, y_val)
-    val_preds_d = fusion_model.predict_risk(val_preds_c, val_anom_scores, val_rules_hit_counts)
+    # Variant D: baseline fusion on Variant C
+    fusion_model_d = FusionModel(regularization_c=fusion_cfg.get("regularization_c", 1.0), random_state=seed)
+    fusion_model_d.fit(val_preds_c, val_anom_scores, val_rules_hit_counts, y_val)
+    val_preds_d = fusion_model_d.predict_risk(val_preds_c, val_anom_scores, val_rules_hit_counts)
+    fusion_model_d.save(model_dir / "fusion_model_d.joblib")
 
+    # Variant E Champion: fusion on Variant E
+    fusion_model = FusionModel(regularization_c=fusion_cfg.get("regularization_c", 1.0), random_state=seed)
+    fusion_model.fit(val_preds_e, val_anom_scores, val_rules_hit_counts, y_val)
+    val_preds_e_fusion = fusion_model.predict_risk(val_preds_e, val_anom_scores, val_rules_hit_counts)
     fusion_model.save(model_dir / "fusion_model.joblib")
 
-    # 8. Choose Operating Thresholds on Validation Split strictly
+    # 9. Copy / register GNN embeddings
+    gnn_processed = processed_dir / "gnn_embeddings.parquet"
+    if gnn_processed.exists():
+        import shutil
+        shutil.copy(gnn_processed, model_dir / "gnn_embeddings.parquet")
+
+    # 10. Choose Operating Thresholds on Validation Split strictly
     # Target: 1.0% False Friction Rate cap on legitimate validation traffic
     logger.info("Choosing operating thresholds on validation set (target: <= 1.0% FFR)...")
     val_legit_mask = (y_val == 0)
 
     thresholds: Dict[str, float] = {}
-    for name, v_scores in [("B", val_preds_b), ("C", val_preds_c), ("D", val_preds_d)]:
+    variants_to_eval = [
+        ("B", val_preds_b),
+        ("C", val_preds_c),
+        ("D", val_preds_d),
+        ("E", val_preds_e),
+        ("E_fusion", val_preds_e_fusion),
+    ]
+    for name, v_scores in variants_to_eval:
         legit_scores = np.sort(v_scores[val_legit_mask])
         idx = int(np.ceil(0.99 * len(legit_scores)))
         if idx >= len(legit_scores):
@@ -164,24 +200,29 @@ def train_pipeline(profile: str = "full", version: Optional[str] = None) -> Dict
         actual_val_ffr = float(np.mean(legit_scores >= th_1pct))
         logger.info(f"  Variant {name}: threshold={th_1pct:.4f} -> validation FFR={actual_val_ffr:.2%}")
 
-    # Threshold for hold/review
-    thresholds["hold_threshold"] = thresholds["threshold_1pct_ffr_variant_d"]
+    # Active Champion Thresholds
+    thresholds["hold_threshold"] = thresholds["threshold_1pct_ffr_variant_e_fusion"]
     thresholds["verify_threshold"] = float(thresholds["hold_threshold"] * 0.75)
     thresholds["warn_threshold"] = float(thresholds["hold_threshold"] * 0.50)
 
     with open(model_dir / "thresholds.json", "w", encoding="utf-8") as f:
         json.dump(thresholds, f, indent=2)
 
-    # 9. Register Model Version
+    # 11. Register Model Version
     artifacts_map = {
         "variant_b_lgbm": str(model_dir / "variant_b_lgbm.joblib"),
         "variant_b_calibrator": str(model_dir / "variant_b_calibrator.joblib"),
         "variant_c_lgbm": str(model_dir / "variant_c_lgbm.joblib"),
         "variant_c_calibrator": str(model_dir / "variant_c_calibrator.joblib"),
+        "variant_e_lgbm": str(model_dir / "variant_e_lgbm.joblib"),
+        "variant_e_calibrator": str(model_dir / "variant_e_calibrator.joblib"),
         "anomaly_iforest": str(model_dir / "anomaly_iforest.joblib"),
         "fusion_model": str(model_dir / "fusion_model.joblib"),
+        "fusion_model_d": str(model_dir / "fusion_model_d.joblib"),
         "thresholds": str(model_dir / "thresholds.json"),
     }
+    if (model_dir / "gnn_embeddings.parquet").exists():
+        artifacts_map["gnn_embeddings"] = str(model_dir / "gnn_embeddings.parquet")
 
     metadata = {
         "version": version,

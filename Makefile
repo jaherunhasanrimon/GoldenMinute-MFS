@@ -31,6 +31,11 @@ ui:
 
 PROFILE ?= small
 
+# macOS Accelerate BLAS crashes when PyTorch uses multiple threads alongside
+# another BLAS library.  Pin to 1 thread for all targets that invoke torch.
+export OMP_NUM_THREADS ?= 1
+export MKL_NUM_THREADS ?= 1
+
 data:
 	$(PYTHON) -m goldenminutes.simulator.generate --profile $(PROFILE)
 
