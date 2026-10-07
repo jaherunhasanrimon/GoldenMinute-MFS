@@ -13,7 +13,7 @@ class FeatureSpec:
     """Specification of a single feature."""
 
     name: str
-    group: Literal["sender", "pair", "device_auth", "recipient", "graph"]
+    group: Literal["sender", "pair", "device_auth", "recipient", "graph", "gnn"]
     dtype: str
     window: Optional[str]
     description: str
@@ -265,3 +265,62 @@ NON_GRAPH_FEATURE_NAMES: List[str] = [
 ]
 
 ALL_FEATURE_NAMES: List[str] = [spec.name for spec in FEATURE_SPECS]
+
+# --- Phase 1: GNN Learned Graph Representations ---
+GNN_FEATURE_SPECS: List[FeatureSpec] = [
+    FeatureSpec(
+        name="gnn_recipient_mule_score",
+        group="gnn",
+        dtype="float64",
+        window="7d",
+        description="GraphSAGE predicted mule probability for recipient wallet from previous day's daily snapshot.",
+        default_value=0.0,
+    ),
+    FeatureSpec(
+        name="gnn_sender_mule_score",
+        group="gnn",
+        dtype="float64",
+        window="7d",
+        description="GraphSAGE predicted mule probability for sender wallet from previous day's daily snapshot.",
+        default_value=0.0,
+    ),
+    FeatureSpec(
+        name="gnn_recipient_emb_0",
+        group="gnn",
+        dtype="float64",
+        window="7d",
+        description="Dimension 0 of recipient wallet 4-dim GraphSAGE structural embedding.",
+        default_value=0.0,
+    ),
+    FeatureSpec(
+        name="gnn_recipient_emb_1",
+        group="gnn",
+        dtype="float64",
+        window="7d",
+        description="Dimension 1 of recipient wallet 4-dim GraphSAGE structural embedding.",
+        default_value=0.0,
+    ),
+    FeatureSpec(
+        name="gnn_recipient_emb_2",
+        group="gnn",
+        dtype="float64",
+        window="7d",
+        description="Dimension 2 of recipient wallet 4-dim GraphSAGE structural embedding.",
+        default_value=0.0,
+    ),
+    FeatureSpec(
+        name="gnn_recipient_emb_3",
+        group="gnn",
+        dtype="float64",
+        window="7d",
+        description="Dimension 3 of recipient wallet 4-dim GraphSAGE structural embedding.",
+        default_value=0.0,
+    ),
+]
+
+GNN_FEATURE_NAMES: List[str] = [spec.name for spec in GNN_FEATURE_SPECS]
+VARIANT_E_FEATURE_NAMES: List[str] = ALL_FEATURE_NAMES + GNN_FEATURE_NAMES
+
+ALL_SPECS_WITH_GNN: List[FeatureSpec] = FEATURE_SPECS + GNN_FEATURE_SPECS
+FEATURE_GROUP_MAP: Dict[str, str] = {spec.name: spec.group for spec in ALL_SPECS_WITH_GNN}
+

@@ -11,7 +11,8 @@ import pandas as pd
 import pytest
 
 from goldenminutes.features.online import OnlineFeatureStore
-from goldenminutes.features.specs import FEATURE_NAMES
+from goldenminutes.features.specs import FEATURE_NAMES, VARIANT_E_FEATURE_NAMES
+from goldenminutes.models.embedding_store import InMemoryEmbeddingStore
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +43,10 @@ def test_online_offline_feature_parity_5000(dataset_paths):
     off_feats = pd.read_parquet(proc_path)
 
     store = OnlineFeatureStore()
+    gnn_store_path = proc_path.parent / "gnn_embeddings.parquet"
+    if gnn_store_path.exists():
+        store.set_embedding_store(InMemoryEmbeddingStore.load(gnn_store_path))
+
     for _, r in wallets.iterrows():
         store.register_wallet(r["wallet_id"], r["opened_at"], r["owner_type"])
     for _, r in auth_events.iterrows():
@@ -64,6 +69,8 @@ def test_online_offline_feature_parity_5000(dataset_paths):
     mismatches = 0
     checked_count = 0
 
+    features_to_check = VARIANT_E_FEATURE_NAMES if gnn_store_path.exists() else FEATURE_NAMES
+
     for idx in range(max_idx + 1):
         row = txns.iloc[idx]
         if idx in sample_set:
@@ -71,7 +78,7 @@ def test_online_offline_feature_parity_5000(dataset_paths):
             off_row = off_feats.iloc[idx]
             checked_count += 1
 
-            for fn in FEATURE_NAMES:
+            for fn in features_to_check:
                 ov = float(off_row[fn])
                 nv = float(on_f[fn])
                 diff = abs(ov - nv)
@@ -100,7 +107,7 @@ def test_online_features_brand_new_wallet():
     }
 
     feats = store.features(txn)
-    assert len(feats) == len(FEATURE_NAMES)
+    assert len(feats) == len(VARIANT_E_FEATURE_NAMES)
     assert feats["is_first_time_pair"] == 1
     assert feats["pair_history_count"] == 0
     assert feats["new_device_flag"] == 1
@@ -110,3 +117,6 @@ def test_online_features_brand_new_wallet():
     assert feats["recipient_unique_senders_1h"] == 0
     assert feats["component_size_7d"] == 1
     assert feats["two_hop_confirmed_mule_share"] == 0.0
+    assert feats["gnn_recipient_mule_score"] == 0.0
+    assert feats["gnn_sender_mule_score"] == 0.0
+    assert feats["gnn_recipient_emb_0"] == 0.0

@@ -14,9 +14,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import networkx as nx
 import numpy as np
 import pandas as pd
+
+from goldenminutes.features.graph import build_p2p_snapshot_graph
+from goldenminutes.models.embedding_store import EmbeddingStore
 
 logger = logging.getLogger("goldenminutes.features.online")
 
@@ -80,9 +82,17 @@ class OnlineFeatureStore:
 
         # Graph edge history by day: day_int -> list of (sender, recipient)
         self.edges_by_day: Dict[int, List[Tuple[str, str]]] = defaultdict(list)
+        self.dev_edges_by_day: Dict[int, List[Tuple[str, str]]] = defaultdict(list)
 
         # Precomputed/cached daily snapshots: day_int -> (comp_sizes_dict, mule_shares_dict)
         self._daily_snapshot_cache: Dict[int, Tuple[Dict[str, int], Dict[str, float]]] = {}
+
+        # GNN embedding store
+        self.embedding_store: Optional[EmbeddingStore] = None
+
+    def set_embedding_store(self, store: Optional[EmbeddingStore]) -> None:
+        """Attach an embedding store for point-in-time GNN feature lookups."""
+        self.embedding_store = store
 
     def reset(self) -> None:
         """Clear all in-memory rolling state."""
@@ -97,6 +107,7 @@ class OnlineFeatureStore:
         self.recipient_inflows.clear()
         self.wallet_outflows.clear()
         self.edges_by_day.clear()
+        self.dev_edges_by_day.clear()
         self._daily_snapshot_cache.clear()
 
     def register_wallet(self, wallet_id: str, opened_at: Any, owner_type: str) -> None:
@@ -133,29 +144,15 @@ class OnlineFeatureStore:
             self._daily_snapshot_cache[day] = res
             return res
 
-        # Gather edges from days in [snap_start, snap_end]
-        G = nx.Graph()
+        edges: List[Tuple[str, str]] = []
         for d in range(snap_start, snap_end + 1):
             if d in self.edges_by_day:
-                for u, v in self.edges_by_day[d]:
-                    G.add_edge(u, v)
+                edges.extend(self.edges_by_day[d])
 
-        # Connected components
-        c_map: Dict[str, int] = {}
-        for c in nx.connected_components(G):
-            sz = len(c)
-            for node in c:
-                c_map[node] = sz
-
-        # 2-hop neighbors mapping
-        two_hop_map: Dict[str, Set[str]] = {}
-        for node in G.nodes():
-            n1 = set(G.neighbors(node))
-            n2: Set[str] = set()
-            for neighbor in n1:
-                n2.update(G.neighbors(neighbor))
-            n2.discard(node)
-            two_hop_map[node] = n2
+        dev_edges: List[Tuple[str, str]] = []
+        for d in range(snap_start, snap_end + 1):
+            if d in self.dev_edges_by_day:
+                dev_edges.extend(self.dev_edges_by_day[d])
 
         # Active confirmations as of day start
         if self.min_ts is not None:
@@ -164,11 +161,11 @@ class OnlineFeatureStore:
         else:
             active_confs = set()
 
-        mule_shares: Dict[str, float] = {}
-        for node, n2 in two_hop_map.items():
-            if n2:
-                mule_shares[node] = len(n2.intersection(active_confs)) / len(n2)
-
+        c_map, mule_shares, _ = build_p2p_snapshot_graph(
+            edges=edges,
+            device_edges=dev_edges,
+            active_confirmations=active_confs,
+        )
         res = (c_map, mule_shares)
         self._daily_snapshot_cache[day] = res
         return res
@@ -384,6 +381,20 @@ class OnlineFeatureStore:
             "component_size_7d": int(component_size_7d),
             "two_hop_confirmed_mule_share": float(two_hop_confirmed_mule_share),
         }
+
+        # 10. GNN features
+        if self.embedding_store is not None:
+            gnn_f = self.embedding_store.get_transaction_gnn_features(day, recipient_id, sender_id)
+        else:
+            gnn_f = {
+                "gnn_recipient_mule_score": 0.0,
+                "gnn_sender_mule_score": 0.0,
+                "gnn_recipient_emb_0": 0.0,
+                "gnn_recipient_emb_1": 0.0,
+                "gnn_recipient_emb_2": 0.0,
+                "gnn_recipient_emb_3": 0.0,
+            }
+        features.update(gnn_f)
         return features
 
     def update(self, event: Dict[str, Any] | pd.Series) -> None:
@@ -429,10 +440,16 @@ class OnlineFeatureStore:
         if txn_type in ["cash_out", "send_money"]:
             self.wallet_outflows[sender_id].append((ts, recipient_id, amount_bdt))
 
-        # 6. Update graph edge history
-        if recipient_id:
-            day = self._get_day_offset(ts)
+        # 6. Update graph edge history (customer-to-customer P2P send_money, and customer-device)
+        sender_owner = self.wallet_meta.get(sender_id, (ts, "customer"))[1]
+        rec_owner = self.wallet_meta.get(recipient_id, (ts, "customer"))[1] if recipient_id else None
+
+        day = self._get_day_offset(ts)
+        if txn_type == "send_money" and recipient_id and sender_owner == "customer" and rec_owner == "customer":
             self.edges_by_day[day].append((sender_id, recipient_id))
+
+        if sender_owner == "customer" and device_id:
+            self.dev_edges_by_day[day].append((sender_id, device_id))
 
     def recipient_first_inflow_minutes(self, recipient_id: Optional[str], ts: Any, window_hours: float = 24.0) -> float:
         """Minutes since the recipient's first inflow in the trailing window, strictly before ts.

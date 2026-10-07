@@ -8,13 +8,17 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Dict, Optional
 
-import networkx as nx
 import numpy as np
 import pandas as pd
 
-from goldenminutes.features.specs import FEATURE_MAP, FEATURE_NAMES
+from goldenminutes.features.graph import build_p2p_snapshot_graph
+from goldenminutes.features.specs import (
+    FEATURE_MAP,
+    FEATURE_NAMES,
+)
+from goldenminutes.models.embedding_store import EmbeddingStore, InMemoryEmbeddingStore
 
 logger = logging.getLogger("goldenminutes.features.offline")
 
@@ -45,11 +49,11 @@ class OfflineFeatureBuilder:
         for df in [self.transactions, self.auth_events, self.confirmations, self.wallets]:
             for col in ["ts", "opened_at", "confirmed_at", "registered_at"]:
                 if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], utc=True)
+                    df[col] = pd.to_datetime(df[col], utc=True).astype("datetime64[ns, UTC]")
 
         self.transactions = self.transactions.sort_values(["ts", "txn_id"]).reset_index(drop=True)
 
-    def compute_features(self) -> pd.DataFrame:
+    def compute_features(self, embedding_store: Optional[EmbeddingStore] = None) -> pd.DataFrame:
         """Compute all features in a point-in-time correct, vectorized manner."""
         if self.transactions is None:
             self.load_raw_data()
@@ -348,75 +352,104 @@ class OfflineFeatureBuilder:
         conf_df["conf_ts_ns"] = conf_df["confirmed_at"].values.astype("datetime64[ns]").view("int64")
 
         # Precompute daily graph snapshots using day D-1
-        daily_graphs: Dict[int, nx.Graph] = {}
-        daily_comp_sizes: Dict[int, Dict[str, int]] = {}
-        daily_2hop_neighbors: Dict[int, Dict[str, Set[str]]] = {}
-
-        # Edges candidate: transfers and cash-outs
-        edge_txns = txns[txns["recipient_wallet_id"].notna()][
+        # P2P send_money candidate edges (strictly customer-to-customer)
+        p2p_mask = (txns["type"] == "send_money") & txns["recipient_wallet_id"].notna()
+        sender_is_cust = txns["sender_wallet_id"].map(wallet_owner_map).fillna("customer") == "customer"
+        rec_is_cust = txns["recipient_wallet_id"].map(wallet_owner_map).fillna("customer") == "customer"
+        p2p_txns = txns[p2p_mask & sender_is_cust & rec_is_cust][
             ["sender_wallet_id", "recipient_wallet_id", "ts"]
         ].copy()
-        edge_txns["day"] = ((edge_txns["ts"] - min_ts).dt.total_seconds() / 86400.0).astype(int).values
+        p2p_txns["day"] = ((p2p_txns["ts"] - min_ts).dt.total_seconds() / 86400.0).astype(int).values
+
+        # Device edges (customer wallet to device)
+        dev_txns = txns[sender_is_cust & txns["device_id"].notna()][
+            ["sender_wallet_id", "device_id", "ts"]
+        ].copy()
+        dev_txns["day"] = ((dev_txns["ts"] - min_ts).dt.total_seconds() / 86400.0).astype(int).values
+
+        daily_comp_sizes: Dict[int, Dict[str, int]] = {}
+        daily_mule_shares: Dict[int, Dict[str, float]] = {}
 
         for day in unique_days:
             # Previous day's snapshot covers [day - 7, day - 1]
             snap_start = max(0, day - 7)
             snap_end = day - 1
             if snap_end < 0:
-                daily_graphs[day] = nx.Graph()
                 daily_comp_sizes[day] = {}
-                daily_2hop_neighbors[day] = {}
+                daily_mule_shares[day] = {}
                 continue
 
-            sub_edges = edge_txns[(edge_txns["day"] >= snap_start) & (edge_txns["day"] <= snap_end)]
-            G = nx.Graph()
-            for u, v in zip(sub_edges["sender_wallet_id"], sub_edges["recipient_wallet_id"], strict=False):
-                G.add_edge(u, v)
+            sub_p2p = p2p_txns[(p2p_txns["day"] >= snap_start) & (p2p_txns["day"] <= snap_end)]
+            p2p_edges = list(zip(sub_p2p["sender_wallet_id"], sub_p2p["recipient_wallet_id"], strict=False))
 
-            daily_graphs[day] = G
-            comps = list(nx.connected_components(G))
-            c_map = {}
-            for c in comps:
-                sz = len(c)
-                for node in c:
-                    c_map[node] = sz
+            sub_dev = dev_txns[(dev_txns["day"] >= snap_start) & (dev_txns["day"] <= snap_end)]
+            dev_edges = list(zip(sub_dev["sender_wallet_id"], sub_dev["device_id"], strict=False))
+
+            # Active confirmations as of day start
+            day_start_ns = int(min_ts.value + day * 86400 * 1e9)
+            active_confs = set(conf_df[conf_df["conf_ts_ns"] <= day_start_ns]["wallet_id"].values)
+
+            c_map, m_map, _ = build_p2p_snapshot_graph(
+                edges=p2p_edges,
+                device_edges=dev_edges,
+                active_confirmations=active_confs,
+            )
             daily_comp_sizes[day] = c_map
-
-            # 2-hop neighbors mapping
-            two_hop_map = {}
-            for node in G.nodes():
-                neighbors_1 = set(G.neighbors(node))
-                neighbors_2 = set()
-                for n1 in neighbors_1:
-                    neighbors_2.update(G.neighbors(n1))
-                neighbors_2.discard(node)
-                two_hop_map[node] = neighbors_2
-            daily_2hop_neighbors[day] = two_hop_map
+            daily_mule_shares[day] = m_map
 
         # Assign component sizes and 2-hop mule share
         for day in unique_days:
             day_mask = (txns_day == day)
             day_indices = np.where(day_mask)[0]
             c_map = daily_comp_sizes.get(day, {})
-            two_hop_map = daily_2hop_neighbors.get(day, {})
-
-            # Active confirmations as of day start
-            day_start_ns = int(min_ts.value + day * 86400 * 1e9)
-            active_confs = set(conf_df[conf_df["conf_ts_ns"] <= day_start_ns]["wallet_id"].values)
-
-            # Precompute mule share for all nodes in this day's graph
-            day_mule_shares = {}
-            for node, neighbors in two_hop_map.items():
-                if neighbors:
-                    day_mule_shares[node] = len(neighbors.intersection(active_confs)) / len(neighbors)
+            m_map = daily_mule_shares.get(day, {})
 
             for idx in day_indices:
                 r_id = txns["recipient_wallet_id"].iloc[idx]
                 if pd.notna(r_id):
                     if r_id in c_map:
                         component_size_7d[idx] = c_map[r_id]
-                    if r_id in day_mule_shares:
-                        two_hop_confirmed_mule_share[idx] = day_mule_shares[r_id]
+                    if r_id in m_map:
+                        two_hop_confirmed_mule_share[idx] = m_map[r_id]
+
+        # 12. GNN Learned Graph Embeddings & Mule Probabilities
+        logger.info("Computing point-in-time GNN scores and embeddings...")
+        gnn_rec_score = np.zeros(n_rows, dtype=np.float64)
+        gnn_snd_score = np.zeros(n_rows, dtype=np.float64)
+        gnn_rec_emb_0 = np.zeros(n_rows, dtype=np.float64)
+        gnn_rec_emb_1 = np.zeros(n_rows, dtype=np.float64)
+        gnn_rec_emb_2 = np.zeros(n_rows, dtype=np.float64)
+        gnn_rec_emb_3 = np.zeros(n_rows, dtype=np.float64)
+
+        if embedding_store is None:
+            # Check if pre-computed embeddings exist in processed or raw dir
+            processed_store = self.raw_dir.parent.parent / "processed" / self.raw_dir.name / "gnn_embeddings.parquet"
+            if processed_store.exists():
+                embedding_store = InMemoryEmbeddingStore.load(processed_store)
+            else:
+                # Lazy import: torch must not be loaded before LightGBM on macOS
+                # (duplicate OpenMP runtimes segfault). Only needed for training.
+                from goldenminutes.models.gnn import build_and_populate_embedding_store
+
+                embedding_store = build_and_populate_embedding_store(
+                    raw_dir=self.raw_dir,
+                    output_store_path=processed_store,
+                )
+
+        if embedding_store is not None:
+            rec_vals = txns["recipient_wallet_id"].values
+            snd_vals = txns["sender_wallet_id"].values
+            for i_row in range(n_rows):
+                day = int(txns_day[i_row])
+                r_w = str(rec_vals[i_row]) if pd.notna(rec_vals[i_row]) and rec_vals[i_row] != "" else None
+                s_w = str(snd_vals[i_row]) if pd.notna(snd_vals[i_row]) and snd_vals[i_row] != "" else None
+                gnn_f = embedding_store.get_transaction_gnn_features(day, r_w, s_w)
+                gnn_rec_score[i_row] = gnn_f["gnn_recipient_mule_score"]
+                gnn_snd_score[i_row] = gnn_f["gnn_sender_mule_score"]
+                gnn_rec_emb_0[i_row] = gnn_f["gnn_recipient_emb_0"]
+                gnn_rec_emb_1[i_row] = gnn_f["gnn_recipient_emb_1"]
+                gnn_rec_emb_2[i_row] = gnn_f["gnn_recipient_emb_2"]
+                gnn_rec_emb_3[i_row] = gnn_f["gnn_recipient_emb_3"]
 
         # Assemble final features dataframe
         features_dict = {
@@ -448,6 +481,12 @@ class OfflineFeatureBuilder:
             "shared_device_wallet_count": shared_device_wallet_count,
             "component_size_7d": component_size_7d,
             "two_hop_confirmed_mule_share": two_hop_confirmed_mule_share,
+            "gnn_recipient_mule_score": gnn_rec_score,
+            "gnn_sender_mule_score": gnn_snd_score,
+            "gnn_recipient_emb_0": gnn_rec_emb_0,
+            "gnn_recipient_emb_1": gnn_rec_emb_1,
+            "gnn_recipient_emb_2": gnn_rec_emb_2,
+            "gnn_recipient_emb_3": gnn_rec_emb_3,
         }
 
         # Validate against FEATURE_SPECS
@@ -464,11 +503,11 @@ class OfflineFeatureBuilder:
         logger.info(f"Offline feature computation complete. Shape: {features_df.shape}")
         return features_df
 
-    def build_and_save(self, output_path: Path | str) -> Path:
+    def build_and_save(self, output_path: Path | str, embedding_store: Optional[EmbeddingStore] = None) -> Path:
         """Run feature extraction and save partitioned Parquet."""
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        features_df = self.compute_features()
+        features_df = self.compute_features(embedding_store=embedding_store)
         features_df.to_parquet(out, index=False)
         logger.info(f"Saved features to {out}")
         return out
@@ -483,6 +522,9 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    # LightGBM must initialise its OpenMP runtime before torch does; importing it
+    # here guarantees correct load order regardless of which make target runs first.
+    import lightgbm  # noqa: F401, I001
     repo_root = Path(__file__).resolve().parents[3]
     raw_dir = repo_root / "data" / "raw" / args.profile
     processed_dir = repo_root / "data" / "processed" / args.profile
