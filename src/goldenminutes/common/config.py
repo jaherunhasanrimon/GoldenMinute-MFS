@@ -49,6 +49,8 @@ class SimulatorConfig(BaseModel):
     confirmation_lag_hours: int = 24
     detection_rate: float = 0.8
     held_out_typology: str = "agent_collusion"
+    realism: Dict[str, Any] = Field(default_factory=dict)
+    networks: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"extra": "ignore"}
 

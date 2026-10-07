@@ -61,7 +61,7 @@
     "kpi_ffr": "False Friction Rate (FFR)",
     "kpi_latency": "p95 Latency",
     "kpi_held_out": "Held-Out Typology Recall",
-    "ablation_title": "Model Ablation (Variants A–D)",
+    "ablation_title": "Model Ablation (Variants A–F)",
     "col_variant": "Variant",
     "col_pr_auc": "PR-AUC",
     "col_recall_ffr": "Recall @ 1% FFR",

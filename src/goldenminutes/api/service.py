@@ -47,13 +47,16 @@ class GoldenMinutesService:
         self.rules_engine = RulesBaseline()
         self.model_c: Optional[RiskLGBM] = None
         self.calibrator_c: Optional[IsotonicCalibrator] = None
+        self.model_e: Optional[RiskLGBM] = None
+        self.calibrator_e: Optional[IsotonicCalibrator] = None
         self.anomaly_model: Optional[AnomalyIsolationForest] = None
         self.fusion_model: Optional[FusionModel] = None
         self.explainer: Optional[TreeShapExplainer] = None
         self.active_version: str = "m-1.0.0-full"
 
         self._load_active_models()
-        self.explainer = TreeShapExplainer(self.model_c)
+        champion_model = self.model_e or self.model_c
+        self.explainer = TreeShapExplainer(champion_model) if champion_model is not None else None
         self._seed_demo_state()
 
     def _load_active_models(self) -> None:
@@ -84,6 +87,10 @@ class GoldenMinutesService:
         artifacts = active_meta.get("artifacts", {})
 
         try:
+            if "variant_e_lgbm" in artifacts and Path(artifacts["variant_e_lgbm"]).exists():
+                self.model_e = RiskLGBM.load(artifacts["variant_e_lgbm"])
+            if "variant_e_calibrator" in artifacts and Path(artifacts["variant_e_calibrator"]).exists():
+                self.calibrator_e = IsotonicCalibrator.load(artifacts["variant_e_calibrator"])
             if "variant_c_lgbm" in artifacts and Path(artifacts["variant_c_lgbm"]).exists():
                 self.model_c = RiskLGBM.load(artifacts["variant_c_lgbm"])
             if "variant_c_calibrator" in artifacts and Path(artifacts["variant_c_calibrator"]).exists():
@@ -92,6 +99,11 @@ class GoldenMinutesService:
                 self.anomaly_model = AnomalyIsolationForest.load(artifacts["anomaly_iforest"])
             if "fusion_model" in artifacts and Path(artifacts["fusion_model"]).exists():
                 self.fusion_model = FusionModel.load(artifacts["fusion_model"])
+            if "gnn_embeddings" in artifacts and Path(artifacts["gnn_embeddings"]).exists():
+                from goldenminutes.models.embedding_store import InMemoryEmbeddingStore
+                emb_store = InMemoryEmbeddingStore.load(artifacts["gnn_embeddings"])
+                self.features.set_embedding_store(emb_store)
+
             logger.info("Loaded active Champion Fusion model: %s", self.active_version)
         except Exception as e:
             logger.error("Failed to load model artifacts: %s", e)
@@ -167,7 +179,13 @@ class GoldenMinutesService:
         rules_hit_count = float(rules_res["rules_hit_count"].iloc[0])
         rules_risk = float(rules_res["risk_score"].iloc[0])
 
-        if self.model_c is not None and self.calibrator_c is not None and self.anomaly_model is not None and self.fusion_model is not None:
+        if self.model_e is not None and self.calibrator_e is not None and self.anomaly_model is not None and self.fusion_model is not None:
+            raw_e = self.model_e.predict_proba(feat_df)
+            p_e = self.calibrator_e.predict(raw_e)
+            anom = self.anomaly_model.predict_anomaly_score(feat_df)
+            fused = self.fusion_model.predict_risk(p_e, anom, np.array([rules_hit_count]))
+            risk_score = float(fused[0])
+        elif self.model_c is not None and self.calibrator_c is not None and self.anomaly_model is not None and self.fusion_model is not None:
             raw_c = self.model_c.predict_proba(feat_df)
             p_c = self.calibrator_c.predict(raw_c)
             anom = self.anomaly_model.predict_anomaly_score(feat_df)

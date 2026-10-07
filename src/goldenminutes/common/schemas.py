@@ -181,6 +181,10 @@ class MetricsResponse(BaseModel):
     hold_resolution_minutes: Optional[float] = None
     total_scored: int = 0
     total_alerts: int = 0
+    champion_variant: Optional[str] = None
+    primary_population: Optional[List[str]] = None
+    other_types: Optional[Dict[str, Any]] = None
+    lift_summary: Optional[Dict[str, Any]] = None
 
 
 # --- Simulation & Demo ---

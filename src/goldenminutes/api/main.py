@@ -435,6 +435,24 @@ def create_app() -> FastAPI:
                 data["total_scored"] = data.get("total_scored", 0) + live_scored
                 data["total_alerts"] = data.get("total_alerts", 0) + live_alerts
                 data["hold_resolution_minutes"] = live_hold_res
+                lift_file = repo_root / "reports" / "lift.json"
+                if lift_file.exists():
+                    try:
+                        with open(lift_file, "r", encoding="utf-8") as lf:
+                            lift = json.load(lf)
+                        diffs = lift.get("bootstrap", {}).get("differences", {})
+                        data["lift_summary"] = {
+                            "profile": lift.get("profile"),
+                            "n_bootstraps": lift.get("bootstrap", {}).get("n_bootstraps"),
+                            "pr_auc_deltas": {k: v.get("pr_auc") for k, v in diffs.items()},
+                            "rewiring_test": lift.get("rewiring_test"),
+                            "max_single_feature": {
+                                "feature": lift.get("single_feature_auc_scan", {}).get("max_feature"),
+                                "roc_auc": lift.get("single_feature_auc_scan", {}).get("max_auc"),
+                            },
+                        }
+                    except Exception as e:  # pragma: no cover - report is optional
+                        logger.warning("Failed to parse reports/lift.json: %s", e)
                 return MetricsResponse(**data)
             except Exception as e:
                 logger.warning("Failed to parse reports/metrics.json: %s", e)

@@ -19,6 +19,9 @@ FIRST_TIME_PAIR:
 RING_LINK:
   en: "This recipient is linked to a network of suspicious transactions."
   bn: "এই প্রাপকটি সন্দেহজনক লেনদেন নেটওয়ার্কের সাথে সম্পর্কিত।"
+NETWORK_MULE_NEIGHBORHOOD:
+  en: "This account is connected to known fraud or mule accounts in the network."
+  bn: "এই অ্যাকাউন্টটি নেটওয়ার্কে চিহ্নিত প্রতারক বা খচ্চর অ্যাকাউন্টের সাথে যুক্ত।"
 SAFE_ACTION_HINT:
   en: "Before sending, call the person on a number you already have."
   bn: "পাঠানোর আগে আপনার জানা নম্বরে সরাসরি ফোন করে নিশ্চিত হয়ে নিন।"
@@ -52,3 +55,9 @@ feature_mappings:
   shared_device_wallet_count: RING_LINK
   component_size_7d: RING_LINK
   two_hop_confirmed_mule_share: RING_LINK
+  gnn_recipient_mule_score: NETWORK_MULE_NEIGHBORHOOD
+  gnn_sender_mule_score: NETWORK_MULE_NEIGHBORHOOD
+  gnn_recipient_emb_0: RING_LINK
+  gnn_recipient_emb_1: RING_LINK
+  gnn_recipient_emb_2: RING_LINK
+  gnn_recipient_emb_3: RING_LINK

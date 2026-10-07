@@ -57,6 +57,9 @@ export const Metrics: React.FC = () => {
     { key: 'sim_swap_takeover', label: 'SIM Swap & Device Takeover', heldOut: false },
   ];
 
+  // Champion variant: derived from the API response (Phase 1 adds champion_variant).
+  const championCode: string = metrics?.champion_variant ?? 'E';
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Header */}
@@ -163,7 +166,7 @@ export const Metrics: React.FC = () => {
             </div>
           </div>
 
-          {/* Ablation Table (A–D) */}
+          {/* Ablation Table (A–F) */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -216,6 +219,7 @@ export const Metrics: React.FC = () => {
                     <th className="py-3 px-4">{t('metrics.col_variant')}</th>
                     <th className="py-3 px-4 text-center">{t('metrics.col_pr_auc')}</th>
                     <th className="py-3 px-4 text-center">{t('metrics.col_recall_ffr')}</th>
+                    <th className="py-3 px-4 text-center">FFR</th>
                     <th className="py-3 px-4 text-center">{t('metrics.col_latency')}</th>
                   </tr>
                 </thead>
@@ -225,26 +229,44 @@ export const Metrics: React.FC = () => {
                     const recallVal = row.recall_at_1pct_ffr ?? row.value_weighted_recall;
                     const recallStr = recallVal != null ? `${(recallVal * 100).toFixed(1)}%` : '—';
                     const latVal = row.p95_latency_ms ?? row.latency_p95_ms;
-                    const latencyStr = latVal != null ? `${latVal.toFixed(2)} ms` : '—';
-                    const isEvaluated = row.status === 'evaluated' || row.pr_auc != null;
+                    const isDiagnostic = row.variant === 'F';
+                    const isChampion = row.variant === championCode;
+                    const latencyStr = latVal != null && !isDiagnostic ? `${latVal.toFixed(2)} ms` : '—';
+                    const ffrStr = row.ffr != null ? `${(row.ffr * 100).toFixed(1)}%` : '—';
 
                     return (
                       <tr
                         key={row.variant}
-                        className={isEvaluated ? 'bg-teal-500/10 text-teal-200' : 'hover:bg-slate-800/40 text-slate-400'}
+                        className={
+                          isChampion
+                            ? 'bg-teal-500/15 text-teal-100'
+                            : isDiagnostic
+                              ? 'text-slate-500 hover:bg-slate-800/40'
+                              : 'hover:bg-slate-800/40 text-slate-300'
+                        }
                       >
                         <td className="py-3.5 px-4 font-semibold text-slate-100 flex items-center gap-2">
                           <span className="font-bold text-white">{row.variant}:</span>
                           <span>{row.name || ''}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/30 text-teal-300 font-bold uppercase">
-                            Evaluated
-                          </span>
+                          {isChampion && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/30 text-teal-300 font-bold uppercase">
+                              Champion
+                            </span>
+                          )}
+                          {isDiagnostic && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-bold uppercase">
+                              Diagnostic
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-center font-bold text-slate-200">
                           {lang === 'bn' ? toBengaliDigits(prAucStr) : prAucStr}
                         </td>
                         <td className="py-3.5 px-4 text-center font-bold text-emerald-400">
                           {lang === 'bn' ? toBengaliDigits(recallStr) : recallStr}
+                        </td>
+                        <td className="py-3.5 px-4 text-center text-amber-300">
+                          {lang === 'bn' ? toBengaliDigits(ffrStr) : ffrStr}
                         </td>
                         <td className="py-3.5 px-4 text-center text-slate-300">
                           {lang === 'bn' ? toBengaliDigits(latencyStr) : latencyStr}
@@ -258,7 +280,62 @@ export const Metrics: React.FC = () => {
 
             <div className="mt-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400 font-bengali">
               ℹ️ {t('metrics.heldout_note')}
+              {metrics.primary_population && metrics.primary_population.length > 0 && (
+                <div className="mt-1 font-mono text-[11px] text-slate-500">
+                  Primary population: {metrics.primary_population.join(', ')} (the transaction types /v1/score accepts)
+                </div>
+              )}
             </div>
+
+            {/* Paired-bootstrap lift (Phase 1) */}
+            {metrics.lift_summary && (
+              <div className="mt-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800" id="lift-ci-panel">
+                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                  Graph lift: paired bootstrap ΔPR-AUC, 95% CI
+                  {metrics.lift_summary.n_bootstraps ? ` (${metrics.lift_summary.n_bootstraps} resamples` : ''}
+                  {metrics.lift_summary.profile ? `, ${metrics.lift_summary.profile} profile)` : metrics.lift_summary.n_bootstraps ? ')' : ''}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    { key: 'C_minus_B', label: 'C − B · NetworkX graph' },
+                    { key: 'E_minus_C', label: 'E − C · GNN over NetworkX' },
+                    { key: 'E_minus_B', label: 'E − B · all graph signals' },
+                  ].map(({ key, label }) => {
+                    const ci = metrics.lift_summary?.pr_auc_deltas?.[key];
+                    if (!ci) return null;
+                    const significant = ci.ci_lower > 0 || ci.ci_upper < 0;
+                    const sign = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(3)}`;
+                    return (
+                      <div
+                        key={key}
+                        className={`p-3 rounded-lg border ${significant ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-slate-700 bg-slate-900/60'}`}
+                      >
+                        <div className="text-[11px] text-slate-400">{label}</div>
+                        <div className="text-lg font-bold font-mono text-white mt-1">{sign(ci.mean)}</div>
+                        <div className="text-[11px] font-mono text-slate-400">
+                          [{sign(ci.ci_lower)}, {sign(ci.ci_upper)}]
+                        </div>
+                        <div className={`text-[10px] mt-1 font-bold uppercase ${significant ? 'text-emerald-400' : 'text-slate-500'}`}>
+                          {significant ? 'CI excludes 0' : 'Not significant (CI overlaps 0)'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {metrics.lift_summary.rewiring_test && (
+                  <div className="mt-3 text-[11px] font-mono text-slate-400">
+                    Edge-rewiring check: PR-AUC {metrics.lift_summary.rewiring_test.baseline_pr_auc.toFixed(3)} →{' '}
+                    {metrics.lift_summary.rewiring_test.rewired_pr_auc.toFixed(3)} when graph edges are randomised.
+                    {metrics.lift_summary.max_single_feature?.feature && metrics.lift_summary.max_single_feature.roc_auc != null && (
+                      <>
+                        {' '}Strongest single feature: {metrics.lift_summary.max_single_feature.feature} (ROC-AUC{' '}
+                        {metrics.lift_summary.max_single_feature.roc_auc.toFixed(3)}).
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Typology Breakdown Table */}
@@ -267,7 +344,7 @@ export const Metrics: React.FC = () => {
               প্রতারণার প্যাটার্নভিত্তিক শনাক্তের হার (Per-Typology Recall Breakdown)
             </h2>
             <p className="text-xs text-slate-400 mb-4 font-bengali">
-              সংরক্ষিত টেস্ট সেটের প্রতিটি ফ্রড টাইপোলজি অনুযায়ী ভ্যারিয়েন্ট A (রুলস) বনাম ভ্যারিয়েন্ট D (ফিউজড মডেল) এর তুলনা
+              সংরক্ষিত টেস্ট সেটের প্রতিটি ফ্রড টাইপোলজি অনুযায়ী ভ্যারিয়েন্ট A (রুলস) বনাম চ্যাম্পিয়ন ভ্যারিয়েন্ট {championCode} এর তুলনা
             </p>
 
             <div className="overflow-x-auto">
@@ -277,15 +354,15 @@ export const Metrics: React.FC = () => {
                     <th className="py-3 px-4">টাইপোলজি / সিনারিও</th>
                     <th className="py-3 px-4 text-center">টাইপোলজি স্ট্যাটাস</th>
                     <th className="py-3 px-4 text-center">ভ্যারিয়েন্ট A (Rules)</th>
-                    <th className="py-3 px-4 text-center">ভ্যারিয়েন্ট D (AI Fused)</th>
+                    <th className="py-3 px-4 text-center">ভ্যারিয়েন্ট {championCode} (AI Champion)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 font-mono">
                   {typologies.map((typ) => {
                     const rowA = metrics.ablation_table.find((r) => r.variant === 'A');
-                    const rowD = metrics.ablation_table.find((r) => r.variant === 'D');
-                    const recA = (rowA as any)?.typology_recalls?.[typ.key] ?? null;
-                    const recD = (rowD as any)?.typology_recalls?.[typ.key] ?? null;
+                    const rowD = metrics.ablation_table.find((r) => r.variant === championCode);
+                    const recA = rowA?.typology_recalls?.[typ.key] ?? null;
+                    const recD = rowD?.typology_recalls?.[typ.key] ?? null;
 
                     const recAStr = recA != null ? `${(recA * 100).toFixed(1)}%` : '—';
                     const recDStr = recD != null ? `${(recD * 100).toFixed(1)}%` : '—';

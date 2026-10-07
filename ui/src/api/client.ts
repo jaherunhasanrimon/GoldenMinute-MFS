@@ -121,6 +121,26 @@ export interface AblationRow {
   ece?: number | null;
   p95_latency_ms?: number | null;
   latency_p95_ms?: number | null;
+  typology_recalls?: Record<string, number>;
+}
+
+export interface CiStat {
+  mean: number;
+  ci_lower: number;
+  ci_upper: number;
+}
+
+export interface LiftSummary {
+  profile?: string;
+  n_bootstraps?: number;
+  pr_auc_deltas: Record<string, CiStat | undefined>;
+  rewiring_test?: {
+    baseline_pr_auc: number;
+    rewired_pr_auc: number;
+    drop_under_rewiring: number;
+    topology_dependency_verified: boolean;
+  };
+  max_single_feature?: { feature?: string; roc_auc?: number };
 }
 
 export interface GraphNode {
@@ -182,6 +202,9 @@ export interface MetricsData {
   hold_resolution_minutes?: number | null;
   total_scored: number;
   total_alerts: number;
+  champion_variant?: string | null;
+  primary_population?: string[] | null;
+  lift_summary?: LiftSummary | null;
 }
 
 export interface DemoAccount {

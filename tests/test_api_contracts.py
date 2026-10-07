@@ -156,7 +156,7 @@ def test_metrics_endpoint_contract():
     assert "fraud_value_intercepted_bdt" in data
     assert "false_friction_rate" in data
     assert "ablation_table" in data
-    assert len(data["ablation_table"]) == 4
+    assert len(data["ablation_table"]) == 6
 
 
 def test_simulation_endpoints_contract():

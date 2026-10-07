@@ -281,11 +281,10 @@ export const CustomerDemo: React.FC = () => {
                       key={preset}
                       type="button"
                       onClick={() => setAmount(preset)}
-                      className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-                        amount === preset
+                      className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${amount === preset
                           ? 'bg-teal-500/20 border-teal-500 text-teal-300 font-medium'
                           : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {formatBDT(preset, lang)}
                     </button>
@@ -360,15 +359,14 @@ export const CustomerDemo: React.FC = () => {
                 <div className="space-y-5 animate-in fade-in duration-200">
                   {/* Action Banner */}
                   <div
-                    className={`p-4 rounded-xl border flex items-start gap-3.5 ${
-                      result.action === 'allow'
+                    className={`p-4 rounded-xl border flex items-start gap-3.5 ${result.action === 'allow'
                         ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                         : result.action === 'warn'
-                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                        : result.action === 'verify'
-                        ? 'bg-sky-500/10 border-sky-500/30 text-sky-300'
-                        : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                    }`}
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                          : result.action === 'verify'
+                            ? 'bg-sky-500/10 border-sky-500/30 text-sky-300'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                      }`}
                   >
                     {result.action === 'allow' && <CheckCircle2 className="w-6 h-6 flex-shrink-0 text-emerald-400" />}
                     {result.action === 'warn' && <AlertTriangle className="w-6 h-6 flex-shrink-0 text-amber-400" />}
@@ -381,10 +379,10 @@ export const CustomerDemo: React.FC = () => {
                           {result.action === 'allow'
                             ? t('customer.action_allow')
                             : result.action === 'warn'
-                            ? t('customer.action_warn')
-                            : result.action === 'verify'
-                            ? t('customer.action_verify')
-                            : t('customer.action_hold')}
+                              ? t('customer.action_warn')
+                              : result.action === 'verify'
+                                ? t('customer.action_verify')
+                                : t('customer.action_hold')}
                         </span>
                         <span className="text-xs px-2 py-0.5 rounded bg-slate-900/60 font-mono font-bold">
                           p={lang === 'bn' ? toBengaliDigits((result.risk_score * 100).toFixed(0)) : (result.risk_score * 100).toFixed(0)}%

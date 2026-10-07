@@ -61,7 +61,7 @@
     "kpi_ffr": "মিথ্যা সতর্কতার হার (FFR)",
     "kpi_latency": "p95 সময়কাল",
     "kpi_held_out": "অদেখা প্যাটার্ন শনাক্তের হার",
-    "ablation_title": "মডেল তুলনা (ভ্যারিয়েন্ট A–D)",
+    "ablation_title": "মডেল তুলনা (ভ্যারিয়েন্ট A–F)",
     "col_variant": "মডেল সংস্করণ",
     "col_pr_auc": "PR-AUC",
     "col_recall_ffr": "১% FFR-এ শনাক্তের হার",

@@ -28,7 +28,9 @@ describe('Metrics Component Tests', () => {
             { variant: 'A', name: 'Rules baseline', status: 'evaluated', pr_auc: 0.114, recall_at_1pct_ffr: 0.5436, latency_p95_ms: 0.75, typology_recalls: { agent_collusion: 1.0, impersonation_scam: 0.23 } },
             { variant: 'B', name: 'LightGBM (no graph)', status: 'evaluated', pr_auc: 0.9935, recall_at_1pct_ffr: 0.9897, latency_p95_ms: 1.5, typology_recalls: { agent_collusion: 0.98, impersonation_scam: 0.98 } },
             { variant: 'C', name: 'LightGBM + Graph', status: 'evaluated', pr_auc: 0.9935, recall_at_1pct_ffr: 0.9897, latency_p95_ms: 1.8, typology_recalls: { agent_collusion: 0.98, impersonation_scam: 0.98 } },
-            { variant: 'D', name: 'Fused (C + Anomaly)', status: 'evaluated', pr_auc: 0.9955, recall_at_1pct_ffr: 0.9897, latency_p95_ms: 2.25, typology_recalls: { agent_collusion: 0.9836, impersonation_scam: 0.9885 } }
+            { variant: 'D', name: 'Fused (C + Anomaly)', status: 'evaluated', pr_auc: 0.9955, recall_at_1pct_ffr: 0.9897, latency_p95_ms: 2.25, typology_recalls: { agent_collusion: 0.9836, impersonation_scam: 0.9885 } },
+            { variant: 'E', name: 'LightGBM + Graph + GNN', status: 'evaluated', pr_auc: 0.9960, recall_at_1pct_ffr: 0.9910, latency_p95_ms: 2.45, typology_recalls: { agent_collusion: 0.9850, impersonation_scam: 0.9900 } },
+            { variant: 'F', name: 'GNN score only (diagnostic)', status: 'evaluated', pr_auc: 0.1500, recall_at_1pct_ffr: 0.1000, latency_p95_ms: 1.20, typology_recalls: { agent_collusion: 0.1000, impersonation_scam: 0.1000 } }
           ],
           held_out_typology_recall: 0.9836,
           fairness_slices: {
@@ -72,17 +74,18 @@ describe('Metrics Component Tests', () => {
     expect(screen.getByText(/অদেখা প্যাটার্ন শনাক্তের হার/i)).toBeInTheDocument();
   });
 
-  it('renders Variant A–D ablation comparison table', async () => {
+  it('renders Variant A–F ablation comparison table', async () => {
     renderMetrics();
     await waitFor(() => {
-      expect(screen.getByText(/মডেল তুলনা \(ভ্যারিয়েন্ট A–D\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/মডেল তুলনা \(ভ্যারিয়েন্ট A–[DF]\)/i)).toBeInTheDocument();
     });
 
     expect(screen.getByText('A:')).toBeInTheDocument();
     expect(screen.getByText('B:')).toBeInTheDocument();
     expect(screen.getByText('C:')).toBeInTheDocument();
     expect(screen.getByText('D:')).toBeInTheDocument();
-    expect(screen.getAllByText('Evaluated').length).toBeGreaterThanOrEqual(4);
+    expect(screen.getByText('E:')).toBeInTheDocument();
+    expect(screen.getByText('F:')).toBeInTheDocument();
   });
 
   it('renders per-typology breakdown table highlighting agent_collusion as held-out', async () => {

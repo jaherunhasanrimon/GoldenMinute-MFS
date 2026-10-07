@@ -7,10 +7,9 @@ export const Navbar: React.FC = () => {
   const { toggleLang, t } = useI18n();
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-      isActive
-        ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30 shadow-sm shadow-teal-500/10'
-        : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isActive
+      ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30 shadow-sm shadow-teal-500/10'
+      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
     }`;
 
   return (

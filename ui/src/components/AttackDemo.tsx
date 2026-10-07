@@ -147,13 +147,12 @@ export const AttackDemo: React.FC<AttackDemoProps> = ({
               return (
                 <div
                   key={st.step}
-                  className={`p-3 rounded-xl border text-xs transition-all ${
-                    isCurrent
+                  className={`p-3 rounded-xl border text-xs transition-all ${isCurrent
                       ? 'ring-2 ring-teal-500/60 bg-slate-950 border-teal-500/60 shadow-lg shadow-teal-500/10'
                       : isPast
-                      ? 'bg-slate-950/90 border-slate-800'
-                      : 'bg-slate-950/40 border-slate-900 opacity-50'
-                  }`}
+                        ? 'bg-slate-950/90 border-slate-800'
+                        : 'bg-slate-950/40 border-slate-900 opacity-50'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="font-mono font-bold text-slate-400 text-[10px]">
@@ -161,15 +160,14 @@ export const AttackDemo: React.FC<AttackDemoProps> = ({
                     </span>
                     {st.action && (
                       <span
-                        className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                          action === 'hold'
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${action === 'hold'
                             ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                             : action === 'warn'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : action === 'verify'
-                            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        }`}
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : action === 'verify'
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}
                       >
                         {action}
                       </span>
