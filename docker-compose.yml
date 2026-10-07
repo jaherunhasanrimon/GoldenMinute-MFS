@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  goldenminutes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: goldenminutes:latest
+    container_name: goldenminutes-app
+    ports:
+      - "8000:8000"
+    environment:
+      - GM_ENV=prod
+      - GM_CORS_ORIGINS=*
+      - GM_DB_URL=sqlite:///./goldenminutes.db
+      - GM_PUBLIC_DEMO_KEY=demo_public_key
+    restart: unless-stopped

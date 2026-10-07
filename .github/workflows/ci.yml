@@ -1,0 +1,131 @@
+name: GoldenMinutes CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Ruff
+        run: pip install ruff
+      - name: Run Ruff Lint
+        run: ruff check .
+      - name: Run Ruff Format Check
+        run: ruff format --check .
+
+  test-backend:
+    name: Backend Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run Pytest
+        env:
+          OMP_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+        run: pytest tests/
+
+  test-frontend:
+    name: Frontend Test Suite & Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Frontend Dependencies
+        working-directory: ui
+        run: npm ci
+      - name: Run Vitest Suite
+        working-directory: ui
+        run: npm run test:run
+      - name: Build Frontend Bundle
+        working-directory: ui
+        run: npm run build
+      - name: Secret Scan on ui/dist (Verify zero analyst keys leaked)
+        run: |
+          echo "Scanning ui/dist for leaked analyst secrets..."
+          if grep -r "VITE_ANALYST_KEY" ui/dist; then
+            echo "ERROR: VITE_ANALYST_KEY was compiled into ui/dist!"
+            exit 1
+          fi
+          if grep -r "demo_analyst_secret_key" ui/dist; then
+            echo "ERROR: demo_analyst_secret_key was found in ui/dist!"
+            exit 1
+          fi
+          echo "PASS: Zero analyst secrets detected in public client bundle."
+
+  fresh-clone-verification:
+    name: Fresh Clone Fallback Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Python Package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Verify Fresh Clone Fallback & Scoring
+        env:
+          OMP_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+        run: |
+          python -c '
+          from goldenminutes.api.main import create_app
+          from fastapi.testclient import TestClient
+          app = create_app()
+          client = TestClient(app)
+          h = client.get("/health").json()
+          print("Health response:", h)
+          assert h["status"] == "ok"
+          assert h["models_loaded"] is True
+          assert h["degraded"] is False
+          score = client.post("/v1/score", json={
+              "txn_id": "CI_FRESH_1",
+              "type": "send_money",
+              "sender_wallet_id": "W_CI_SENDER",
+              "recipient_wallet_id": "W_CI_REC",
+              "amount_bdt": 12000.0,
+              "device_id": "DEV_CI",
+              "balance_before": 20000.0,
+          }, headers={"X-API-Key": "demo_public_key"}).json()
+          print("Score response:", score)
+          assert "risk_score" in score
+          assert "action" in score
+          print("Fresh clone verification SUCCESS!")
+          '
+
+  docker-build:
+    name: Single-Container Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+      - name: Build Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: goldenminutes:latest

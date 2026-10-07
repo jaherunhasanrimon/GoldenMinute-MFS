@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+ui/node_modules
+ui/.vite
+ui/dist
+data/
+goldentimes_synthetic_dataset/
+scratch/
+reports/*.png
+tests/__pycache__
