@@ -14,9 +14,14 @@ import logging
 import re
 from typing import Any, Dict, Optional, Set
 
+from goldenminutes.security.sanitizer import (
+    detect_prompt_injection,
+    sanitize_text,
+)
+
 logger = logging.getLogger("goldenminutes.llm.guards")
 
-# Prompt injection patterns
+# Prompt injection patterns combining legacy and comprehensive multi-lingual patterns
 HOSTILE_PATTERNS = [
     r"(?i)ignore\s+(all\s+)?(previous|prior)\s+instructions",
     r"(?i)system\s+prompt",
@@ -45,14 +50,15 @@ class LLMGuards:
         if not raw_reference:
             return None
 
-        clean = str(raw_reference).strip()[:140]
-        for pattern in HOSTILE_PATTERNS:
-            if re.search(pattern, clean):
-                logger.warning("Detected potential prompt injection in reference text: %r", clean)
-                # Strip out injection
-                clean = re.sub(pattern, "[FILTERED]", clean)
+        is_injected, pattern = detect_prompt_injection(raw_reference)
+        if is_injected:
+            logger.warning(
+                "Detected potential prompt injection in reference text: pattern=%r", pattern
+            )
 
-        return clean.strip()
+        # Apply robust sanitizer
+        sanitized = sanitize_text(raw_reference, max_length=140)
+        return sanitized if sanitized else None
 
     @classmethod
     def prepare_evidence(
