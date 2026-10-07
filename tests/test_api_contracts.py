@@ -18,6 +18,9 @@ def test_health_endpoint():
     assert "model_version" in data
     assert "policy_version" in data
     assert "environment" in data
+    assert "models_loaded" in data
+    assert "degraded" in data
+    assert "artifact_source" in data
 
 
 def test_request_id_middleware_and_timing():

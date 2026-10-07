@@ -20,7 +20,12 @@ class AppSettings(BaseSettings):
     gm_seed: int = Field(default=42, alias="GM_SEED")
     gm_customer_key: str = Field(default="demo_customer_secret_key", alias="GM_CUSTOMER_KEY")
     gm_analyst_key: str = Field(default="demo_analyst_secret_key", alias="GM_ANALYST_KEY")
+    gm_public_demo_key: str = Field(default="demo_public_key", alias="GM_PUBLIC_DEMO_KEY")
     gm_warmup_cutoff: Optional[str] = Field(default=None, alias="GM_WARMUP_CUTOFF")
+    gm_cors_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
+        alias="GM_CORS_ORIGINS",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

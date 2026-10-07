@@ -79,9 +79,13 @@ def create_app() -> FastAPI:
     )
 
     # 1. CORS Middleware
+    cors_origins = [o.strip() for o in settings.gm_cors_origins.split(",") if o.strip()]
+    if "*" in cors_origins:
+        cors_origins = ["*"]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -163,6 +167,9 @@ def create_app() -> FastAPI:
             model_version=service.active_version,
             policy_version=service.policy.version,
             environment=settings.gm_env,
+            models_loaded=getattr(service, "models_loaded", False),
+            degraded=getattr(service, "degraded", True),
+            artifact_source=getattr(service, "artifact_source", "none"),
         )
 
     # 5. POST /v1/score (Real pipeline)
@@ -258,7 +265,9 @@ def create_app() -> FastAPI:
         )
 
     # 8. POST /v1/alerts/{alert_id}/decision (Real analyst action & mandatory audit log)
-    @app.post("/v1/alerts/{alert_id}/decision", response_model=AlertDecisionResponse, tags=["Analyst"])
+    @app.post(
+        "/v1/alerts/{alert_id}/decision", response_model=AlertDecisionResponse, tags=["Analyst"]
+    )
     def decide_alert(
         alert_id: str,
         decision_req: AlertDecisionRequest,
@@ -266,10 +275,15 @@ def create_app() -> FastAPI:
     ) -> AlertDecisionResponse:
         """Record analyst action (approve, release, escalate) with mandatory note for release."""
         # Release requires an explanatory note
-        if decision_req.action == "release" and not (decision_req.note and decision_req.note.strip()):
+        if decision_req.action == "release" and not (
+            decision_req.note and decision_req.note.strip()
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"code": "VALIDATION_ERROR", "message": "Release action requires an explanatory note"},
+                detail={
+                    "code": "VALIDATION_ERROR",
+                    "message": "Release action requires an explanatory note",
+                },
             )
 
         try:
@@ -326,7 +340,8 @@ def create_app() -> FastAPI:
         mule_wallets: set = set()
         with service.db.get_session() as sess:
             for d in sess.query(DecisionRecord).filter(
-                (DecisionRecord.sender_wallet_id == wallet_id) | (DecisionRecord.recipient_wallet_id == wallet_id)
+                (DecisionRecord.sender_wallet_id == wallet_id)
+                | (DecisionRecord.recipient_wallet_id == wallet_id)
             ):
                 for w in (d.sender_wallet_id, d.recipient_wallet_id):
                     risk_by_wallet[w] = max(risk_by_wallet.get(w, 0.0), float(d.risk_score))
@@ -336,7 +351,9 @@ def create_app() -> FastAPI:
         def _attrs(wid: str) -> Dict[str, object]:
             return {"risk_score": risk_by_wallet.get(wid), "is_mule": wid in mule_wallets}
 
-        nodes[wallet_id] = GraphNode(id=wallet_id, label=f"Wallet {wallet_id}", type="wallet", **_attrs(wallet_id))
+        nodes[wallet_id] = GraphNode(
+            id=wallet_id, label=f"Wallet {wallet_id}", type="wallet", **_attrs(wallet_id)
+        )
 
         # Inflows to target wallet
         inflows = service.features.recipient_inflows.get(wallet_id, [])
@@ -426,6 +443,7 @@ def create_app() -> FastAPI:
                     if dur >= 0:
                         durations.append(dur)
             import numpy as np
+
             live_hold_res = round(float(np.median(durations)), 2) if durations else None
 
         if metrics_file.exists():
@@ -447,7 +465,9 @@ def create_app() -> FastAPI:
                             "pr_auc_deltas": {k: v.get("pr_auc") for k, v in diffs.items()},
                             "rewiring_test": lift.get("rewiring_test"),
                             "max_single_feature": {
-                                "feature": lift.get("single_feature_auc_scan", {}).get("max_feature"),
+                                "feature": lift.get("single_feature_auc_scan", {}).get(
+                                    "max_feature"
+                                ),
                                 "roc_auc": lift.get("single_feature_auc_scan", {}).get("max_auc"),
                             },
                         }
@@ -487,7 +507,6 @@ def create_app() -> FastAPI:
             message=f"Attack scenario replayed: 35,000 BDT transfer intercepted with {res3.action.upper()}",
             steps=out["steps"],
         )
-
 
     # 13. POST /v1/simulate/reset (Real simulation state reset)
     @app.post("/v1/simulate/reset", response_model=SimulateResetResponse, tags=["Simulation"])

@@ -1,5 +1,4 @@
-"""API dependencies including role-based authentication and settings."""
-
+import hmac
 from typing import List, Optional
 
 from fastapi import Header, HTTPException, status
@@ -7,10 +6,8 @@ from fastapi import Header, HTTPException, status
 from goldenminutes.common.config import get_settings
 
 
-def verify_api_key(
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key")
-) -> str:
-    """Validate X-API-Key against configured environment keys.
+def verify_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")) -> str:
+    """Validate X-API-Key against configured environment keys in constant time.
 
     Returns the role: 'customer_demo' or 'analyst'.
     """
@@ -22,9 +19,11 @@ def verify_api_key(
             detail={"code": "UNAUTHORIZED", "message": "Missing X-API-Key header"},
         )
 
-    if x_api_key == settings.gm_analyst_key:
+    if hmac.compare_digest(x_api_key, settings.gm_analyst_key):
         return "analyst"
-    elif x_api_key == settings.gm_customer_key:
+    elif hmac.compare_digest(x_api_key, settings.gm_public_demo_key):
+        return "public_demo"
+    elif hmac.compare_digest(x_api_key, settings.gm_customer_key):
         return "customer_demo"
     else:
         raise HTTPException(
@@ -37,7 +36,7 @@ def require_roles(allowed_roles: List[str]):
     """Dependency factory checking that the caller has one of the allowed roles."""
 
     def role_checker(
-        x_api_key: Optional[str] = Header(None, alias="X-API-Key", description="API Key")
+        x_api_key: Optional[str] = Header(None, alias="X-API-Key", description="API Key"),
     ) -> str:
         actual_role = verify_api_key(x_api_key)
         if actual_role not in allowed_roles:
@@ -53,5 +52,7 @@ def require_roles(allowed_roles: List[str]):
     return role_checker
 
 
-require_analyst = require_roles(["analyst"])
-require_authenticated = require_roles(["customer_demo", "analyst"])
+# Public demo safety stopgap (D2 option a):
+# public_demo has sandbox read-access to analyst views, while real analyst key retains full privilege.
+require_analyst = require_roles(["analyst", "public_demo"])
+require_authenticated = require_roles(["customer_demo", "analyst", "public_demo"])

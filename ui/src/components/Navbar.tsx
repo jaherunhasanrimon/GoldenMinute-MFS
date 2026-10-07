@@ -1,10 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Shield, Activity, BarChart3, Globe, Sparkles } from 'lucide-react';
+import { Shield, Activity, BarChart3, Globe, Sparkles, AlertTriangle } from 'lucide-react';
 import { useI18n } from '../locales/i18n';
+import { api } from '../api/client';
 
 export const Navbar: React.FC = () => {
   const { toggleLang, t } = useI18n();
+  const [isDegraded, setIsDegraded] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    api.checkHealth()
+      .then((res) => {
+        if (mounted && (res.degraded || res.models_loaded === false)) {
+          setIsDegraded(true);
+        }
+      })
+      .catch(() => {
+        // network / offline
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isActive
@@ -13,8 +31,17 @@ export const Navbar: React.FC = () => {
     }`;
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80 px-4 lg:px-8 py-3">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80">
+      {isDegraded && (
+        <div
+          data-testid="degraded-banner"
+          className="bg-rose-950/90 border-b border-rose-500/40 px-4 py-2 text-center text-xs text-rose-200 flex items-center justify-center gap-2 font-medium shadow-inner"
+        >
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span className="font-bengali">{t('degraded_banner')}</span>
+        </div>
+      )}
+      <div className="max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 py-3">
         {/* Brand & Logo */}
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">

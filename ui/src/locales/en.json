@@ -5,6 +5,7 @@
   "nav_analyst": "Analyst Console",
   "nav_metrics": "Metrics & Evaluation",
   "demo_data_badge": "Demo Data (Synthetic)",
+  "degraded_banner": "System operating in DEGRADED (rules-only) mode: Machine learning models could not be loaded or verified.",
   "language_toggle": "বাংলা",
   "customer": {
     "title": "Send Money Simulation",

@@ -4,8 +4,7 @@
  */
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
-const CUSTOMER_KEY = import.meta.env.VITE_CUSTOMER_KEY || 'demo_customer_secret_key';
-const ANALYST_KEY = import.meta.env.VITE_ANALYST_KEY || 'demo_analyst_secret_key';
+const DEMO_KEY = import.meta.env.VITE_DEMO_KEY || 'demo_public_key';
 
 let isStubDetected = true; // default true for P0 until proven otherwise
 const stubListeners: Set<(isStub: boolean) => void> = new Set();
@@ -28,14 +27,13 @@ function updateStubStatus(response: Response) {
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
-  role: 'customer' | 'analyst' = 'customer'
+  _role: 'customer' | 'analyst' = 'customer'
 ): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
-  const apiKey = role === 'analyst' ? ANALYST_KEY : CUSTOMER_KEY;
 
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
-  headers.set('X-API-Key', apiKey);
+  headers.set('X-API-Key', DEMO_KEY);
 
   const response = await fetch(url, {
     ...options,
@@ -217,7 +215,15 @@ export interface DemoAccount {
 }
 
 export const api = {
-  checkHealth: () => request<{ status: string; environment: string }>('/health'),
+  checkHealth: () => request<{
+    status: string;
+    environment: string;
+    model_version: string;
+    policy_version: string;
+    models_loaded: boolean;
+    degraded: boolean;
+    artifact_source: string;
+  }>('/health'),
   scoreTransaction: (data: ScorePayload) => request<ScoreResult>('/v1/score', { method: 'POST', body: JSON.stringify(data) }, 'customer'),
   getAlerts: (statusFilter?: string) => {
     const query = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
