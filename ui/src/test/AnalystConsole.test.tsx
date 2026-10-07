@@ -1,13 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { I18nProvider } from '../locales/i18n';
+import { AuthProvider } from '../context/AuthContext';
 import { AnalystConsole } from '../pages/AnalystConsole';
 
 const renderAnalystConsole = () => {
   return render(
-    <I18nProvider>
-      <AnalystConsole />
-    </I18nProvider>
+    <AuthProvider>
+      <I18nProvider>
+        <AnalystConsole />
+      </I18nProvider>
+    </AuthProvider>
   );
 };
 
@@ -18,6 +21,31 @@ describe('AnalystConsole Component Tests', () => {
     vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
       const urlStr = String(url);
       const method = init?.method || 'GET';
+
+      if (urlStr.includes('/v1/auth/me') || urlStr.includes('/v1/auth/login')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          access_token: 'mock-token',
+          refresh_token: 'mock-refresh',
+          token_type: 'bearer',
+          expires_in: 3600,
+          user: {
+            user_id: 'USR-001',
+            username: 'analyst_karim',
+            full_name: 'Karim Rahman',
+            role: 'analyst',
+            is_active: true
+          }
+        }), { status: 200 }));
+      }
+
+      if (urlStr.includes('/v1/audit/verify')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          valid: true,
+          total_records: 12,
+          genesis_hash: 'genesis-hash',
+          last_hash: 'last-hash'
+        }), { status: 200 }));
+      }
 
       if (urlStr.includes('/v1/alerts') && !urlStr.includes('/v1/alerts/A1001') && method === 'GET') {
         return Promise.resolve(new Response(JSON.stringify({

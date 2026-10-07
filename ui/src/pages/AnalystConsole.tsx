@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { api, AlertDetail, AlertSummary, GraphResponse } from '../api/client';
 import { useI18n } from '../locales/i18n';
+import { useAuth } from '../context/AuthContext';
 import { formatBDT, formatTimeLeft, toBengaliDigits } from '../utils/format';
 import {
   Activity,
@@ -16,10 +17,13 @@ import {
   Network,
   History,
   AlertTriangle,
+  Award,
+  Link2,
 } from 'lucide-react';
 
 export const AnalystConsole: React.FC = () => {
   const { lang, t } = useI18n();
+  const { user, switchPersona } = useAuth();
   const [alerts, setAlerts] = useState<AlertSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +33,8 @@ export const AnalystConsole: React.FC = () => {
   const [releaseNote, setReleaseNote] = useState('');
   const [noteError, setNoteError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [fourEyesError, setFourEyesError] = useState<string | null>(null);
+  const [auditVerified, setAuditVerified] = useState<{ total: number; valid: boolean } | null>(null);
 
   // Local Wallet Graph state for detail drawer
   const [graphData, setGraphData] = useState<GraphResponse | null>(null);
@@ -53,6 +59,12 @@ export const AnalystConsole: React.FC = () => {
         .finally(() => {
           if (mounted) setLoading(false);
         });
+
+      api.verifyAuditChain()
+        .then((res) => {
+          if (mounted) setAuditVerified({ total: res.total_records, valid: res.valid });
+        })
+        .catch(() => {});
     };
 
     fetchAlerts();
@@ -68,6 +80,7 @@ export const AnalystConsole: React.FC = () => {
     setDetailLoading(true);
     setActionSuccess(null);
     setNoteError(null);
+    setFourEyesError(null);
     setGraphData(null);
 
     try {
@@ -102,12 +115,18 @@ export const AnalystConsole: React.FC = () => {
     }
 
     try {
+      setFourEyesError(null);
       await api.decideAlert(selectedAlert.alert_id, action, releaseNote.trim());
       setActionSuccess(
         lang === 'bn'
           ? `অ্যালার্ট #${selectedAlert.alert_id}-এ '${action}' পদক্ষেপ সফলভাবে রেকর্ড করা হয়েছে।`
           : `Alert #${selectedAlert.alert_id} successfully updated with action: ${action}.`
       );
+
+      // Refresh audit chain verification
+      api.verifyAuditChain()
+        .then((res) => setAuditVerified({ total: res.total_records, valid: res.valid }))
+        .catch(() => {});
 
       // Update local alert in list
       setAlerts((prev) =>
@@ -121,7 +140,16 @@ export const AnalystConsole: React.FC = () => {
       setReleaseNote('');
       setNoteError(null);
     } catch (err: any) {
-      alert(`Action failed: ${err.message}`);
+      const msg = err.message || '';
+      if (msg.includes('FOUR_EYES_REQUIRED') || msg.includes('Four-eyes') || msg.includes('403')) {
+        setFourEyesError(
+          lang === 'bn'
+            ? '৫০,০০০ টাকার অধিক লেনদেন অবমুক্ত করতে ফোর-আইজ (Four-Eyes) নীতি অনুযায়ী সিনিয়র অ্যানালিস্টের অনুমোদন আবশ্যক।'
+            : 'Four-Eyes Dual Authorization Required: Releasing holds ≥ ৳50,000 requires Senior Analyst approval.'
+        );
+      } else {
+        alert(`Action failed: ${msg}`);
+      }
     }
   };
 
@@ -144,7 +172,21 @@ export const AnalystConsole: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {auditVerified && (
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono ${
+              auditVerified.valid
+                ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400'
+                : 'bg-rose-950/60 border-rose-800 text-rose-400'
+            }`}>
+              <Link2 className="w-3.5 h-3.5" />
+              <span className="font-bengali">
+                {auditVerified.valid
+                  ? (lang === 'bn' ? `অডিট চেইন: সুরক্ষিত (${auditVerified.total} ব্লক)` : `Audit Chain: Valid (${auditVerified.total} blocks)`)
+                  : (lang === 'bn' ? 'অডিট চেইন: ট্যাম্পার শনাক্ত!' : 'Audit Chain: Tampered!')}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-teal-400 font-mono">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />
             <span className="font-bengali">{t('analyst.auto_refresh')}</span>
@@ -553,6 +595,41 @@ export const AnalystConsole: React.FC = () => {
                   </p>
                 )}
               </div>
+
+              {/* Four-Eyes Dual Authorization Warning */}
+              {fourEyesError && (
+                <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/50 text-amber-200 text-xs shadow-lg">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-bold font-bengali text-amber-300">
+                        {lang === 'bn' ? 'ফোর-আইজ (Four-Eyes) নীতি লঙ্ঘিত' : 'Four-Eyes Dual Authorization Required'}
+                      </div>
+                      <p className="mt-1 font-bengali leading-relaxed text-slate-300">
+                        {fourEyesError}
+                        {user && (
+                          <span className="block mt-1 text-[11px] text-amber-300/80 font-mono">
+                            (Active user: {user.username} · Role: {user.role})
+                          </span>
+                        )}
+                      </p>
+                      <div className="mt-2.5 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await switchPersona('senior_analyst');
+                            setFourEyesError(null);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow transition-colors font-bengali"
+                        >
+                          <Award className="w-3.5 h-3.5" />
+                          {lang === 'bn' ? 'সিনিয়র অ্যানালিস্ট (আয়েশা) হিসেবে অনুমোদন করুন' : 'Authorize as Senior Analyst (Ayesha)'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Analyst Actions */}

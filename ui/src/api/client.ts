@@ -6,6 +6,23 @@
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 const DEMO_KEY = import.meta.env.VITE_DEMO_KEY || 'demo_public_key';
 
+let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('gm_access_token') : null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('gm_access_token', token);
+    } else {
+      localStorage.removeItem('gm_access_token');
+    }
+  }
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
 let isStubDetected = true; // default true for P0 until proven otherwise
 const stubListeners: Set<(isStub: boolean) => void> = new Set();
 
@@ -34,6 +51,10 @@ async function request<T>(
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   headers.set('X-API-Key', DEMO_KEY);
+
+  if (authToken) {
+    headers.set('Authorization', `Bearer ${authToken}`);
+  }
 
   const response = await fetch(url, {
     ...options,
@@ -214,7 +235,69 @@ export interface DemoAccount {
   description: string;
 }
 
+export interface UserSummary {
+  user_id: string;
+  username: string;
+  full_name: string;
+  email: string;
+  role: 'analyst' | 'senior_analyst' | 'admin' | 'customer_demo' | 'auditor';
+  is_active: boolean;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user: UserSummary;
+}
+
+export interface AuditVerifyResponse {
+  valid: boolean;
+  total_records: number;
+  genesis_hash: string;
+  last_hash: string;
+  error?: string | null;
+}
+
+export interface AuditLogEntry {
+  audit_id: string;
+  sequence_number: number;
+  prev_hash: string;
+  entry_hash: string;
+  event_type: string;
+  user_id: string;
+  resource_type: string;
+  resource_id: string;
+  action: string;
+  details: Record<string, unknown>;
+  ts: string;
+}
+
 export const api = {
+  // Authentication & Session
+  login: async (username: string, password = 'AnalystPass123!'): Promise<TokenResponse> => {
+    const res = await request<TokenResponse>('/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }, 'analyst');
+    setAuthToken(res.access_token);
+    return res;
+  },
+  logout: async (): Promise<void> => {
+    try {
+      await request('/v1/auth/logout', { method: 'POST' }, 'analyst');
+    } finally {
+      setAuthToken(null);
+    }
+  },
+  getCurrentUser: (): Promise<UserSummary> => request<UserSummary>('/v1/auth/me', {}, 'analyst'),
+
+  // Audit Chain
+  verifyAuditChain: (): Promise<AuditVerifyResponse> => request<AuditVerifyResponse>('/v1/audit/verify', {}, 'analyst'),
+  getAuditLogs: (): Promise<{ logs: AuditLogEntry[]; total: number; chain_valid: boolean }> =>
+    request('/v1/audit/logs', {}, 'analyst'),
+
   checkHealth: () => request<{
     status: string;
     environment: string;
@@ -247,3 +330,4 @@ export const api = {
     }, 'customer'),
   simulateReset: () => request<{ status: string; message: string }>('/v1/simulate/reset', { method: 'POST' }, 'customer'),
 };
+

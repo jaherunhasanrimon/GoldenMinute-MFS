@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
-import { Shield, Activity, BarChart3, Globe, Sparkles, AlertTriangle } from 'lucide-react';
+import { NavLink, Link } from 'react-router-dom';
+import { Shield, Activity, BarChart3, Globe, Sparkles, AlertTriangle, UserCheck, Award, LogIn } from 'lucide-react';
 import { useI18n } from '../locales/i18n';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 
 export const Navbar: React.FC = () => {
   const { toggleLang, t } = useI18n();
+  const { user, switchPersona } = useAuth();
   const [isDegraded, setIsDegraded] = useState(false);
 
   useEffect(() => {
@@ -29,6 +31,14 @@ export const Navbar: React.FC = () => {
       ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30 shadow-sm shadow-teal-500/10'
       : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
     }`;
+
+  const togglePersona = () => {
+    if (user?.role === 'senior_analyst') {
+      switchPersona('analyst');
+    } else {
+      switchPersona('senior_analyst');
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80">
@@ -82,6 +92,43 @@ export const Navbar: React.FC = () => {
 
         {/* Right Action Bar */}
         <div className="flex items-center gap-3">
+          {/* Active Reviewer Persona Toggle (Four-Eyes Demo) */}
+          {user ? (
+            <button
+              onClick={togglePersona}
+              title="Click to toggle between Junior Analyst and Senior Analyst to test Four-Eyes dual authorization"
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                user.role === 'senior_analyst'
+                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-300 hover:bg-amber-500/20'
+                  : 'bg-teal-500/10 border-teal-500/40 text-teal-300 hover:bg-teal-500/20'
+              }`}
+            >
+              {user.role === 'senior_analyst' ? (
+                <Award className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <UserCheck className="w-3.5 h-3.5 text-teal-400" />
+              )}
+              <span className="font-medium text-[11px]">{user.full_name}</span>
+              <span
+                className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-bold ${
+                  user.role === 'senior_analyst'
+                    ? 'bg-amber-400 text-slate-950'
+                    : 'bg-teal-400 text-slate-950'
+                }`}
+              >
+                {user.role === 'senior_analyst' ? 'Sr. Analyst' : 'Analyst'}
+              </span>
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
+            >
+              <LogIn className="w-3 h-3" />
+              <span>Login</span>
+            </Link>
+          )}
+
           {/* Demo Data Badge */}
           <div
             data-testid="demo-data-badge"
