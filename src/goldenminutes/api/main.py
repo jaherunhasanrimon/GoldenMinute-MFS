@@ -2,22 +2,35 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from goldenminutes.api.deps import require_analyst, require_authenticated
+from goldenminutes.api.auth import (
+    create_access_token,
+    create_refresh_token,
+    verify_password,
+)
+from goldenminutes.api.deps import (
+    get_current_user,
+    get_optional_current_user,
+    require_analyst,
+    require_authenticated,
+    require_senior_analyst,
+)
 from goldenminutes.api.service import get_service
-from goldenminutes.api.store import AlertRecord, AnalystActionRecord, DecisionRecord
+from goldenminutes.api.store import AlertRecord, AnalystActionRecord, DecisionRecord, UserRecord
 from goldenminutes.common.config import get_settings
 from goldenminutes.common.schemas import (
     AlertDecisionRequest,
@@ -25,6 +38,9 @@ from goldenminutes.common.schemas import (
     AlertDetailResponse,
     AlertListResponse,
     AlertSummary,
+    AuditLogEntry,
+    AuditLogListResponse,
+    AuditVerifyResponse,
     CustomerMessage,
     DemoAccount,
     DemoAccountsResponse,
@@ -36,13 +52,17 @@ from goldenminutes.common.schemas import (
     GraphNode,
     GraphResponse,
     HealthResponse,
+    LoginRequest,
     MetricsResponse,
     ReasonCode,
+    RefreshTokenRequest,
     ScoreRequest,
     ScoreResponse,
     SimulateAttackRequest,
     SimulateAttackResponse,
     SimulateResetResponse,
+    TokenResponse,
+    UserSummary,
 )
 from goldenminutes.demo.scenarios import run_attack
 
@@ -159,6 +179,230 @@ def create_app() -> FastAPI:
             content=error_body.model_dump(),
         )
 
+    # 3.1 Authentication & User Session Endpoints (Phase 3)
+    @app.post("/v1/auth/login", response_model=TokenResponse, tags=["Authentication"])
+    def login(login_req: LoginRequest, response: Response) -> TokenResponse:
+        """Authenticate user, enforce lockout, issue JWT access & refresh tokens."""
+        user = service.db.get_user_by_username(login_req.username)
+        if not user:
+            service.db.record_login_attempt(login_req.username, success=False)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "INVALID_CREDENTIALS", "message": "Invalid username or password"},
+            )
+
+        is_valid = verify_password(login_req.password, user.password_hash)
+        success, err_msg = service.db.record_login_attempt(user.username, success=is_valid)
+        if not success:
+            code = "ACCOUNT_LOCKED" if "locked" in (err_msg or "").lower() else "INVALID_CREDENTIALS"
+            status_code = status.HTTP_403_FORBIDDEN if code == "ACCOUNT_LOCKED" else status.HTTP_401_UNAUTHORIZED
+            raise HTTPException(
+                status_code=status_code,
+                detail={"code": code, "message": err_msg or "Invalid username or password"},
+            )
+
+        access_token = create_access_token(
+            data={
+                "sub": user.user_id,
+                "user_id": user.user_id,
+                "username": user.username,
+                "role": user.role,
+                "full_name": user.full_name,
+            }
+        )
+        raw_refresh, token_hash = create_refresh_token()
+        expires_at = datetime.now(timezone.utc) + timedelta(days=settings.gm_refresh_token_expire_days)
+        service.db.store_refresh_token(user_id=user.user_id, token_hash=token_hash, expires_at=expires_at)
+
+        # Set secure httpOnly cookies for web browsers
+        is_secure = settings.gm_env == "prod"
+        response.set_cookie(
+            key="gm_access_token",
+            value=access_token,
+            httponly=True,
+            samesite="lax",
+            secure=is_secure,
+            max_age=settings.gm_access_token_expire_minutes * 60,
+        )
+        response.set_cookie(
+            key="gm_refresh_token",
+            value=raw_refresh,
+            httponly=True,
+            samesite="lax",
+            secure=is_secure,
+            max_age=settings.gm_refresh_token_expire_days * 86400,
+        )
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=raw_refresh,
+            token_type="bearer",
+            expires_in=settings.gm_access_token_expire_minutes * 60,
+            user=UserSummary(
+                user_id=user.user_id,
+                username=user.username,
+                full_name=user.full_name,
+                email=user.email,
+                role=user.role,
+                is_active=user.is_active,
+            ),
+        )
+
+    @app.post("/v1/auth/refresh", response_model=TokenResponse, tags=["Authentication"])
+    def refresh_user_token(
+        response: Response,
+        refresh_req: Optional[RefreshTokenRequest] = None,
+        gm_refresh_token: Optional[str] = Cookie(None),
+    ) -> TokenResponse:
+        """Rotate refresh token and issue new JWT access token."""
+        raw_token = (refresh_req.refresh_token if refresh_req and refresh_req.refresh_token else None) or gm_refresh_token
+        if not raw_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "UNAUTHORIZED", "message": "Missing refresh token"},
+            )
+
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        rec = service.db.get_refresh_token(token_hash)
+        if not rec or rec.revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "TOKEN_INVALID", "message": "Invalid or expired refresh token"},
+            )
+
+        exp = rec.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "TOKEN_EXPIRED", "message": "Refresh token expired"},
+            )
+
+        user = service.db.get_user_by_id(rec.user_id)
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "USER_DISABLED", "message": "User account inactive"},
+            )
+
+        # Rotate token
+        service.db.revoke_refresh_token(token_hash)
+        new_raw_refresh, new_token_hash = create_refresh_token()
+        new_expires_at = datetime.now(timezone.utc) + timedelta(days=settings.gm_refresh_token_expire_days)
+        service.db.store_refresh_token(user_id=user.user_id, token_hash=new_token_hash, expires_at=new_expires_at)
+
+        new_access_token = create_access_token(
+            data={
+                "sub": user.user_id,
+                "user_id": user.user_id,
+                "username": user.username,
+                "role": user.role,
+                "full_name": user.full_name,
+            }
+        )
+
+        is_secure = settings.gm_env == "prod"
+        response.set_cookie(
+            key="gm_access_token",
+            value=new_access_token,
+            httponly=True,
+            samesite="lax",
+            secure=is_secure,
+            max_age=settings.gm_access_token_expire_minutes * 60,
+        )
+        response.set_cookie(
+            key="gm_refresh_token",
+            value=new_raw_refresh,
+            httponly=True,
+            samesite="lax",
+            secure=is_secure,
+            max_age=settings.gm_refresh_token_expire_days * 86400,
+        )
+
+        return TokenResponse(
+            access_token=new_access_token,
+            refresh_token=new_raw_refresh,
+            token_type="bearer",
+            expires_in=settings.gm_access_token_expire_minutes * 60,
+            user=UserSummary(
+                user_id=user.user_id,
+                username=user.username,
+                full_name=user.full_name,
+                email=user.email,
+                role=user.role,
+                is_active=user.is_active,
+            ),
+        )
+
+    @app.post("/v1/auth/logout", tags=["Authentication"])
+    def logout(
+        response: Response,
+        refresh_req: Optional[RefreshTokenRequest] = None,
+        gm_refresh_token: Optional[str] = Cookie(None),
+    ) -> Dict[str, str]:
+        """Revoke refresh token and clear authentication session cookies."""
+        raw_token = (refresh_req.refresh_token if refresh_req and refresh_req.refresh_token else None) or gm_refresh_token
+        if raw_token:
+            token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+            service.db.revoke_refresh_token(token_hash)
+
+        response.delete_cookie(key="gm_access_token")
+        response.delete_cookie(key="gm_refresh_token")
+        return {"status": "ok", "message": "Successfully logged out"}
+
+    @app.get("/v1/auth/me", response_model=UserSummary, tags=["Authentication"])
+    def get_current_user_profile(user: UserRecord = Depends(get_current_user)) -> UserSummary:
+        """Return profile and role for current authenticated user."""
+        return UserSummary(
+            user_id=user.user_id,
+            username=user.username,
+            full_name=user.full_name,
+            email=user.email,
+            role=user.role,
+            is_active=user.is_active,
+        )
+
+    # 3.2 Audit Chain Verification Endpoints
+    @app.get("/v1/audit/verify", response_model=AuditVerifyResponse, tags=["Audit"])
+    def verify_audit_trail(role: str = Depends(require_senior_analyst)) -> AuditVerifyResponse:
+        """Cryptographically verify the entire SHA-256 audit hash chain."""
+        is_valid, total, genesis, last, err = service.db.verify_audit_chain()
+        return AuditVerifyResponse(
+            valid=is_valid,
+            total_records=total,
+            genesis_hash=genesis,
+            last_hash=last,
+            error=err,
+        )
+
+    @app.get("/v1/audit/logs", response_model=AuditLogListResponse, tags=["Audit"])
+    def list_audit_logs(
+        resource_id: Optional[str] = None,
+        limit: int = 100,
+        role: str = Depends(require_senior_analyst),
+    ) -> AuditLogListResponse:
+        """Fetch audit log records ordered by sequence descending with hash links."""
+        records = service.db.get_audit_trail(resource_id=resource_id, limit=limit)
+        is_valid, _, _, _, _ = service.db.verify_audit_chain()
+        logs = [
+            AuditLogEntry(
+                audit_id=r.audit_id,
+                sequence_number=r.sequence_number,
+                prev_hash=r.prev_hash,
+                entry_hash=r.entry_hash,
+                event_type=r.event_type,
+                user_id=r.user_id,
+                resource_type=r.resource_type,
+                resource_id=r.resource_id,
+                action=r.action,
+                details=json.loads(r.details_json) if r.details_json else {},
+                ts=r.ts,
+            )
+            for r in records
+        ]
+        return AuditLogListResponse(logs=logs, total=len(logs), chain_valid=is_valid)
+
     # 4. Health endpoint
     @app.get("/health", response_model=HealthResponse, tags=["System"])
     def get_health() -> HealthResponse:
@@ -264,7 +508,7 @@ def create_app() -> FastAPI:
             actions_taken=actions_taken,
         )
 
-    # 8. POST /v1/alerts/{alert_id}/decision (Real analyst action & mandatory audit log)
+    # 8. POST /v1/alerts/{alert_id}/decision (Real analyst action, four-eyes enforcement & audit log)
     @app.post(
         "/v1/alerts/{alert_id}/decision", response_model=AlertDecisionResponse, tags=["Analyst"]
     )
@@ -272,8 +516,9 @@ def create_app() -> FastAPI:
         alert_id: str,
         decision_req: AlertDecisionRequest,
         role: str = Depends(require_analyst),
+        user: Optional[UserRecord] = Depends(get_optional_current_user),
     ) -> AlertDecisionResponse:
-        """Record analyst action (approve, release, escalate) with mandatory note for release."""
+        """Record analyst action (approve, release, escalate) with four-eyes enforcement and hash-chain audit."""
         # Release requires an explanatory note
         if decision_req.action == "release" and not (
             decision_req.note and decision_req.note.strip()
@@ -286,11 +531,38 @@ def create_app() -> FastAPI:
                 },
             )
 
+        target_alert = service.db.get_alert(alert_id)
+        if not target_alert:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "NOT_FOUND", "message": f"Alert {alert_id} not found"},
+            )
+
+        # Four-Eyes rule: Releasing holds with high money-at-risk requires senior_analyst or admin
+        if decision_req.action in ("release", "approve"):
+            if target_alert.money_at_risk >= settings.gm_four_eyes_threshold_bdt:
+                effective_role = user.role if user else role
+                if effective_role not in ("senior_analyst", "admin"):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail={
+                            "code": "FOUR_EYES_REQUIRED",
+                            "message": (
+                                f"Four-Eyes dual authorization required: Releasing holds with money-at-risk >= "
+                                f"৳{settings.gm_four_eyes_threshold_bdt:,.2f} requires senior analyst sign-off "
+                                f"(current role: '{effective_role}', alert money at risk: ৳{target_alert.money_at_risk:,.2f})."
+                            ),
+                        },
+                    )
+
+        # Attribute action to individual user or fallback for legacy role
+        analyst_id = user.user_id if user else getattr(decision_req, "analyst_id", f"analyst_{role}")
+
         try:
             alert, action = service.db.record_analyst_action(
                 alert_id=alert_id,
                 action=decision_req.action,
-                analyst_id="analyst_demo",
+                analyst_id=analyst_id,
                 note=decision_req.note,
             )
         except ValueError as e:
