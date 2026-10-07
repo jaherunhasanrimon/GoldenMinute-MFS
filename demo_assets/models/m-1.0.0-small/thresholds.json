@@ -1,8 +1,10 @@
 {
-  "threshold_1pct_ffr_variant_b": 0.5,
-  "threshold_1pct_ffr_variant_c": 0.5,
-  "threshold_1pct_ffr_variant_d": 0.5,
-  "hold_threshold": 0.5,
-  "verify_threshold": 0.375,
-  "warn_threshold": 0.25
+  "threshold_1pct_ffr_variant_b": 0.125,
+  "threshold_1pct_ffr_variant_c": 0.08695652173913043,
+  "threshold_1pct_ffr_variant_d": 0.08337117102111102,
+  "threshold_1pct_ffr_variant_e": 0.1,
+  "threshold_1pct_ffr_variant_e_fusion": 0.11325609649682601,
+  "hold_threshold": 0.11325609649682601,
+  "verify_threshold": 0.08494207237261951,
+  "warn_threshold": 0.056628048248413006
 }

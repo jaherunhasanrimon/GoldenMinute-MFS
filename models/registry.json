@@ -34,6 +34,19 @@
         "hold_threshold": 0.11325609649682601,
         "verify_threshold": 0.08494207237261951,
         "warn_threshold": 0.056628048248413006
+      },
+      "checksums": {
+        "variant_b_lgbm": "ccacd61e9ea798fb69aebb51ac394db9cf1f92c3dca70eb71a48d96f82eaf9b3",
+        "variant_b_calibrator": "80cf83b7bdf1fa0163899240382484d7060366e75c2a47d39e9ae83358b1b4a3",
+        "variant_c_lgbm": "ff3bdfa9ecb370446c2775158be93293c9358c4d04740902f7769c7eb5aa1892",
+        "variant_c_calibrator": "d68161f67bb07bf58bb090bc125c66fc029573e1bcb73f94a669bd0e8af0da80",
+        "variant_e_lgbm": "2880eb16967c92a8b58d31635c2c67626bfbd3fd895fd859b076bfeb6a6099d6",
+        "variant_e_calibrator": "914b22d18fe7e209c7137da97484aae21519b5048016dbd4898223a0d4667e19",
+        "anomaly_iforest": "3eea19d5ca12ba28bd5abc5d48d301ae274a1f523580ec98d229c63729c97b17",
+        "fusion_model": "722189d52a4254b03528287930733239cfe788768d8d483d3a3465974ffdc742",
+        "fusion_model_d": "ca06987b382a79edee80300efc756d91d1c7968de33863bedafb9086d8388b88",
+        "thresholds": "8c5bd206afa719010b8c232c6022514e71b0ad9db35040c122b0d8ccb193a028",
+        "gnn_embeddings": "45077d57006c8585ea7b31d621ea32638cdb2098d40707603727bb7876edcb3a"
       }
     },
     "m-1.0.0-full": {
@@ -69,6 +82,19 @@
         "hold_threshold": 0.5,
         "verify_threshold": 0.375,
         "warn_threshold": 0.25
+      },
+      "checksums": {
+        "variant_b_lgbm": "86083636ffb287c5c146f948a74e758d057896d787d9a5569dab0ae3492fabd3",
+        "variant_b_calibrator": "233d36c04ef969c81e4306cd50f93e3dbf1eb8a64f3ef8238bbaa3a3ccdf8fb1",
+        "variant_c_lgbm": "d804ce05f52ad3e255ed28c4a57a2dd646e43906e2730f3505d82cfddea91c43",
+        "variant_c_calibrator": "c9b69b85670f7a42d0bda2b8961c7e6b718fee8cd0c1f936b7b9d6fb3c663f47",
+        "variant_e_lgbm": "a0770e1de373ff1b4c6d755d6f922778a69cef7fa1eefd05bca3b3b4db6c833b",
+        "variant_e_calibrator": "ef47d13daec252ffd6f9f0f11cee7250132905f5db511bbc4a0c94f5011d1ffb",
+        "anomaly_iforest": "4c80c0b613fae2d12e8c81c67bfc4c6c9026920a865e7ec7e0ed7cdb2b5e1fb3",
+        "fusion_model": "f6b492fa3483f1d75ad0ddcd9e00dcb276a33a583dcd4e4b896da236e6403c4f",
+        "fusion_model_d": "e8d902c1758e7fee78e30826764db71a16fd478eb8b404463260cf2245ebb715",
+        "thresholds": "443c5e9e1e0d1697f7b2b8381ef61db2e71f866f2cb81dcea5b6c4f12512c01b",
+        "gnn_embeddings": "235c893b60a9a2deb0d0b8a59b08fd5a09df0cba684834e0e2323aa308199f69"
       }
     }
   }

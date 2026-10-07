@@ -5,29 +5,48 @@
       "version": "m-1.0.0-small",
       "profile": "small",
       "seed": 42,
-      "trained_at": "2026-10-03T19:41:17.829562+00:00",
+      "trained_at": "2026-10-07T05:01:12.758423+00:00",
       "config_hash": "86b9523a54e5bc76",
       "held_out_typology": "agent_collusion",
-      "training_rows": 16180,
-      "validation_rows": 4037,
-      "test_rows": 3993,
+      "training_rows": 12644,
+      "validation_rows": 4075,
+      "test_rows": 7589,
       "features_count": 28,
       "artifacts": {
         "variant_b_lgbm": "models/m-1.0.0-small/variant_b_lgbm.joblib",
         "variant_b_calibrator": "models/m-1.0.0-small/variant_b_calibrator.joblib",
         "variant_c_lgbm": "models/m-1.0.0-small/variant_c_lgbm.joblib",
         "variant_c_calibrator": "models/m-1.0.0-small/variant_c_calibrator.joblib",
+        "variant_e_lgbm": "models/m-1.0.0-small/variant_e_lgbm.joblib",
+        "variant_e_calibrator": "models/m-1.0.0-small/variant_e_calibrator.joblib",
         "anomaly_iforest": "models/m-1.0.0-small/anomaly_iforest.joblib",
         "fusion_model": "models/m-1.0.0-small/fusion_model.joblib",
-        "thresholds": "models/m-1.0.0-small/thresholds.json"
+        "fusion_model_d": "models/m-1.0.0-small/fusion_model_d.joblib",
+        "thresholds": "models/m-1.0.0-small/thresholds.json",
+        "gnn_embeddings": "models/m-1.0.0-small/gnn_embeddings.parquet"
       },
       "thresholds": {
-        "threshold_1pct_ffr_variant_b": 0.5,
-        "threshold_1pct_ffr_variant_c": 0.5,
-        "threshold_1pct_ffr_variant_d": 0.5,
-        "hold_threshold": 0.5,
-        "verify_threshold": 0.375,
-        "warn_threshold": 0.25
+        "threshold_1pct_ffr_variant_b": 0.125,
+        "threshold_1pct_ffr_variant_c": 0.08695652173913043,
+        "threshold_1pct_ffr_variant_d": 0.08337117102111102,
+        "threshold_1pct_ffr_variant_e": 0.1,
+        "threshold_1pct_ffr_variant_e_fusion": 0.11325609649682601,
+        "hold_threshold": 0.11325609649682601,
+        "verify_threshold": 0.08494207237261951,
+        "warn_threshold": 0.056628048248413006
+      },
+      "checksums": {
+        "variant_b_lgbm": "ccacd61e9ea798fb69aebb51ac394db9cf1f92c3dca70eb71a48d96f82eaf9b3",
+        "variant_b_calibrator": "80cf83b7bdf1fa0163899240382484d7060366e75c2a47d39e9ae83358b1b4a3",
+        "variant_c_lgbm": "ff3bdfa9ecb370446c2775158be93293c9358c4d04740902f7769c7eb5aa1892",
+        "variant_c_calibrator": "d68161f67bb07bf58bb090bc125c66fc029573e1bcb73f94a669bd0e8af0da80",
+        "variant_e_lgbm": "2880eb16967c92a8b58d31635c2c67626bfbd3fd895fd859b076bfeb6a6099d6",
+        "variant_e_calibrator": "914b22d18fe7e209c7137da97484aae21519b5048016dbd4898223a0d4667e19",
+        "anomaly_iforest": "3eea19d5ca12ba28bd5abc5d48d301ae274a1f523580ec98d229c63729c97b17",
+        "fusion_model": "722189d52a4254b03528287930733239cfe788768d8d483d3a3465974ffdc742",
+        "fusion_model_d": "ca06987b382a79edee80300efc756d91d1c7968de33863bedafb9086d8388b88",
+        "thresholds": "8c5bd206afa719010b8c232c6022514e71b0ad9db35040c122b0d8ccb193a028",
+        "gnn_embeddings": "45077d57006c8585ea7b31d621ea32638cdb2098d40707603727bb7876edcb3a"
       }
     }
   }

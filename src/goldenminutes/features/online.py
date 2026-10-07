@@ -179,7 +179,8 @@ class OnlineFeatureStore:
         amount_bdt = float(txn.get("amount_bdt") if isinstance(txn, dict) else txn["amount_bdt"])
         balance_before = float(txn.get("balance_before") if isinstance(txn, dict) else txn.get("balance_before", 0.0))
         device_id = str(txn.get("device_id") if isinstance(txn, dict) else txn.get("device_id", "default_device"))
-        session_seconds = float(txn.get("session_seconds") if isinstance(txn, dict) else txn.get("session_seconds", 60.0))
+        raw_ss = txn.get("session_seconds") if isinstance(txn, dict) else txn.get("session_seconds", 60.0)
+        session_seconds = float(raw_ss if raw_ss is not None else 60.0)
 
         if self.min_ts is None or ts < self.min_ts:
             self.min_ts = ts

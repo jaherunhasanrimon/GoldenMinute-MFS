@@ -20,7 +20,7 @@ from goldenminutes.llm.provider import NarrativeProvider, get_narrative_provider
 from goldenminutes.models.anomaly import AnomalyIsolationForest
 from goldenminutes.models.calibration import IsotonicCalibrator
 from goldenminutes.models.fusion import FusionModel
-from goldenminutes.models.registry import REPO_ROOT, ModelRegistry
+from goldenminutes.models.registry import ModelRegistry
 from goldenminutes.models.risk_lgbm import RiskLGBM
 from goldenminutes.policy.engine import PolicyDecision, PolicyEngine
 from goldenminutes.rules.baseline import RulesBaseline
@@ -52,7 +52,10 @@ class GoldenMinutesService:
         self.anomaly_model: Optional[AnomalyIsolationForest] = None
         self.fusion_model: Optional[FusionModel] = None
         self.explainer: Optional[TreeShapExplainer] = None
-        self.active_version: str = "m-1.0.0-full"
+        self.active_version: str = "m-none"
+        self.models_loaded: bool = False
+        self.degraded: bool = True
+        self.artifact_source: str = "none"
 
         self._load_active_models()
         champion_model = self.model_e or self.model_c
@@ -60,53 +63,60 @@ class GoldenMinutesService:
         self._seed_demo_state()
 
     def _load_active_models(self) -> None:
-        """Load Champion Fusion artifacts from ModelRegistry."""
-        active_meta = self.registry.get_active_metadata()
-        if not active_meta:
-            # Check demo_assets safety net for fresh checkout demo
-            demo_models_dir = REPO_ROOT / "demo_assets" / "models"
-            if demo_models_dir.exists():
-                import shutil
-                (REPO_ROOT / "models").mkdir(parents=True, exist_ok=True)
-                shutil.copytree(demo_models_dir, REPO_ROOT / "models", dirs_exist_ok=True)
-                if (REPO_ROOT / "demo_assets" / "registry.json").exists():
-                    shutil.copy(REPO_ROOT / "demo_assets" / "registry.json", REPO_ROOT / "models" / "registry.json")
-                self.registry = ModelRegistry()
-                active_meta = self.registry.get_active_metadata()
+        """Resolve and load Champion Fusion artifacts from ModelRegistry."""
+        active_meta, source, degraded = self.registry.resolve_active_model()
+        self.artifact_source = source
+        self.degraded = degraded
 
         if not active_meta:
-            # Fallback to small if full not present
-            versions = self.registry.data.get("versions", {})
-            if "m-1.0.0-small" in versions:
-                active_meta = self.registry.get_version_metadata("m-1.0.0-small")
-            else:
-                logger.warning("No trained models found in registry. Running in fallback mode.")
-                return
+            logger.warning("No verified models resolved. Running in DEGRADED rules-only mode.")
+            self.active_version = "m-none"
+            self.models_loaded = False
+            return
 
-        self.active_version = active_meta["version"]
+        self.active_version = active_meta.get("version", "m-unknown")
         artifacts = active_meta.get("artifacts", {})
 
         try:
             if "variant_e_lgbm" in artifacts and Path(artifacts["variant_e_lgbm"]).exists():
                 self.model_e = RiskLGBM.load(artifacts["variant_e_lgbm"])
-            if "variant_e_calibrator" in artifacts and Path(artifacts["variant_e_calibrator"]).exists():
+            if (
+                "variant_e_calibrator" in artifacts
+                and Path(artifacts["variant_e_calibrator"]).exists()
+            ):
                 self.calibrator_e = IsotonicCalibrator.load(artifacts["variant_e_calibrator"])
             if "variant_c_lgbm" in artifacts and Path(artifacts["variant_c_lgbm"]).exists():
                 self.model_c = RiskLGBM.load(artifacts["variant_c_lgbm"])
-            if "variant_c_calibrator" in artifacts and Path(artifacts["variant_c_calibrator"]).exists():
+            if (
+                "variant_c_calibrator" in artifacts
+                and Path(artifacts["variant_c_calibrator"]).exists()
+            ):
                 self.calibrator_c = IsotonicCalibrator.load(artifacts["variant_c_calibrator"])
             if "anomaly_iforest" in artifacts and Path(artifacts["anomaly_iforest"]).exists():
                 self.anomaly_model = AnomalyIsolationForest.load(artifacts["anomaly_iforest"])
             if "fusion_model" in artifacts and Path(artifacts["fusion_model"]).exists():
                 self.fusion_model = FusionModel.load(artifacts["fusion_model"])
+            elif "fusion_model_d" in artifacts and Path(artifacts["fusion_model_d"]).exists():
+                self.fusion_model = FusionModel.load(artifacts["fusion_model_d"])
             if "gnn_embeddings" in artifacts and Path(artifacts["gnn_embeddings"]).exists():
                 from goldenminutes.models.embedding_store import InMemoryEmbeddingStore
+
                 emb_store = InMemoryEmbeddingStore.load(artifacts["gnn_embeddings"])
                 self.features.set_embedding_store(emb_store)
 
-            logger.info("Loaded active Champion Fusion model: %s", self.active_version)
+            self.models_loaded = bool(self.model_e or self.model_c)
+            self.degraded = not self.models_loaded
+            logger.info(
+                "Loaded active model version %s (source: %s, models_loaded: %s, degraded: %s)",
+                self.active_version,
+                self.artifact_source,
+                self.models_loaded,
+                self.degraded,
+            )
         except Exception as e:
             logger.error("Failed to load model artifacts: %s", e)
+            self.models_loaded = False
+            self.degraded = True
 
     def _seed_demo_state(self) -> None:
         """Seed demo wallets into online feature store to power the customer & analyst demo."""
@@ -118,50 +128,58 @@ class GoldenMinutesService:
 
         # Recipients
         self.features.register_wallet("W08371", now - timedelta(days=4), "customer")  # Fresh mule
-        self.features.register_wallet("W07712", now - timedelta(days=500), "customer")  # Known relative
+        self.features.register_wallet(
+            "W07712", now - timedelta(days=500), "customer"
+        )  # Known relative
         self.features.register_wallet("W09920", now - timedelta(days=600), "customer")  # House rent
 
         # Prepopulate W08371 (mule) with rapid fan-in inflows
         for i in range(4):
             t = now - timedelta(minutes=40 - i * 8)
-            sender = f"W_DEMO_{i+10}"
+            sender = f"W_DEMO_{i + 10}"
             self.features.register_wallet(sender, now - timedelta(days=200), "customer")
-            self.features.update({
-                "ts": t,
-                "txn_id": f"TXN_SEED_{i}",
-                "type": "send_money",
-                "sender_wallet_id": sender,
-                "recipient_wallet_id": "W08371",
-                "amount_bdt": 18000.0 + i * 2000,
-                "device_id": "DEV_RING_01",
-                "balance_before": 50000.0,
-            })
+            self.features.update(
+                {
+                    "ts": t,
+                    "txn_id": f"TXN_SEED_{i}",
+                    "type": "send_money",
+                    "sender_wallet_id": sender,
+                    "recipient_wallet_id": "W08371",
+                    "amount_bdt": 18000.0 + i * 2000,
+                    "device_id": "DEV_RING_01",
+                    "balance_before": 50000.0,
+                }
+            )
 
         # Prepopulate past cash-out for W08371
-        self.features.update({
-            "ts": now - timedelta(minutes=15),
-            "txn_id": "TXN_SEED_CO",
-            "type": "cash_out",
-            "sender_wallet_id": "W08371",
-            "recipient_wallet_id": None,
-            "amount_bdt": 35000.0,
-            "device_id": "DEV_RING_01",
-            "balance_before": 38000.0,
-        })
+        self.features.update(
+            {
+                "ts": now - timedelta(minutes=15),
+                "txn_id": "TXN_SEED_CO",
+                "type": "cash_out",
+                "sender_wallet_id": "W08371",
+                "recipient_wallet_id": None,
+                "amount_bdt": 35000.0,
+                "device_id": "DEV_RING_01",
+                "balance_before": 38000.0,
+            }
+        )
 
         # Prepopulate trusted pair history for W01928 -> W07712
         for i in range(5):
             t = now - timedelta(days=60 - i * 10)
-            self.features.update({
-                "ts": t,
-                "txn_id": f"TXN_LEGIT_{i}",
-                "type": "send_money",
-                "sender_wallet_id": "W01928",
-                "recipient_wallet_id": "W07712",
-                "amount_bdt": 5000.0,
-                "device_id": "DEV_W01928",
-                "balance_before": 45000.0,
-            })
+            self.features.update(
+                {
+                    "ts": t,
+                    "txn_id": f"TXN_LEGIT_{i}",
+                    "type": "send_money",
+                    "sender_wallet_id": "W01928",
+                    "recipient_wallet_id": "W07712",
+                    "amount_bdt": 5000.0,
+                    "device_id": "DEV_W01928",
+                    "balance_before": 45000.0,
+                }
+            )
 
     def reset(self) -> None:
         """Reset database, policy state, and feature store for simulation demo."""
@@ -170,7 +188,9 @@ class GoldenMinutesService:
         self.features = OnlineFeatureStore()
         self._seed_demo_state()
 
-    def predict_risk(self, feat_dict: Dict[str, Any]) -> Tuple[float, List[ReasonCode]]:
+    def predict_risk(
+        self, feat_dict: Dict[str, Any], compute_shap: bool = True
+    ) -> Tuple[float, List[ReasonCode]]:
         """Compute model risk score and explainable reason codes."""
         feat_df = pd.DataFrame([feat_dict])
 
@@ -179,13 +199,23 @@ class GoldenMinutesService:
         rules_hit_count = float(rules_res["rules_hit_count"].iloc[0])
         rules_risk = float(rules_res["risk_score"].iloc[0])
 
-        if self.model_e is not None and self.calibrator_e is not None and self.anomaly_model is not None and self.fusion_model is not None:
+        if (
+            self.model_e is not None
+            and self.calibrator_e is not None
+            and self.anomaly_model is not None
+            and self.fusion_model is not None
+        ):
             raw_e = self.model_e.predict_proba(feat_df)
             p_e = self.calibrator_e.predict(raw_e)
             anom = self.anomaly_model.predict_anomaly_score(feat_df)
             fused = self.fusion_model.predict_risk(p_e, anom, np.array([rules_hit_count]))
             risk_score = float(fused[0])
-        elif self.model_c is not None and self.calibrator_c is not None and self.anomaly_model is not None and self.fusion_model is not None:
+        elif (
+            self.model_c is not None
+            and self.calibrator_c is not None
+            and self.anomaly_model is not None
+            and self.fusion_model is not None
+        ):
             raw_c = self.model_c.predict_proba(feat_df)
             p_c = self.calibrator_c.predict(raw_c)
             anom = self.anomaly_model.predict_anomaly_score(feat_df)
@@ -197,24 +227,39 @@ class GoldenMinutesService:
 
         # Extract top reason codes via TreeSHAP
         reason_codes: List[ReasonCode] = []
-        if self.explainer is not None:
+        if compute_shap and self.explainer is not None:
             reason_codes = self.explainer.get_top_reasons(feat_df, top_k=3)
 
         # Fallback to heuristic reason codes if SHAP yielded empty
         if not reason_codes:
-            if feat_dict.get("recipient_unique_senders_1h", 0) >= 2 or feat_dict.get("recipient_unique_senders_24h", 0) >= 3:
+            if (
+                feat_dict.get("recipient_unique_senders_1h", 0) >= 2
+                or feat_dict.get("recipient_unique_senders_24h", 0) >= 3
+            ):
                 reason_codes.append(ReasonCode(code="RECIPIENT_FAN_IN_BURST", weight=0.38))
-            if feat_dict.get("amount_to_median_ratio", 1.0) >= 2.5 or feat_dict.get("balance_drain_ratio", 0.0) >= 0.75:
+            if (
+                feat_dict.get("amount_to_median_ratio", 1.0) >= 2.5
+                or feat_dict.get("balance_drain_ratio", 0.0) >= 0.75
+            ):
                 reason_codes.append(ReasonCode(code="AMOUNT_UNUSUAL_FOR_SENDER", weight=0.28))
-            if feat_dict.get("recipient_pass_through_ratio_24h", 0.0) >= 0.6 or feat_dict.get("recipient_median_receipt_to_out_minutes", 1440.0) <= 30.0:
+            if (
+                feat_dict.get("recipient_pass_through_ratio_24h", 0.0) >= 0.6
+                or feat_dict.get("recipient_median_receipt_to_out_minutes", 1440.0) <= 30.0
+            ):
                 reason_codes.append(ReasonCode(code="RECIPIENT_FAST_PASS_THROUGH", weight=0.22))
             if feat_dict.get("recipient_age_days", 100.0) <= 7.0:
                 reason_codes.append(ReasonCode(code="RECIPIENT_NEW", weight=0.18))
-            if feat_dict.get("new_device_flag", 0) == 1 or feat_dict.get("minutes_since_pin_reset", 43200.0) <= 1440.0:
+            if (
+                feat_dict.get("new_device_flag", 0) == 1
+                or feat_dict.get("minutes_since_pin_reset", 43200.0) <= 1440.0
+            ):
                 reason_codes.append(ReasonCode(code="DEVICE_OR_PIN_CHANGE_RECENT", weight=0.15))
             if feat_dict.get("is_first_time_pair", 0) == 1:
                 reason_codes.append(ReasonCode(code="FIRST_TIME_PAIR", weight=0.12))
-            if feat_dict.get("two_hop_confirmed_mule_share", 0.0) > 0.0 or feat_dict.get("shared_device_wallet_count", 1) >= 2:
+            if (
+                feat_dict.get("two_hop_confirmed_mule_share", 0.0) > 0.0
+                or feat_dict.get("shared_device_wallet_count", 1) >= 2
+            ):
                 reason_codes.append(ReasonCode(code="RING_LINK", weight=0.25))
 
         reason_codes.sort(key=lambda r: r.weight, reverse=True)
@@ -236,7 +281,9 @@ class GoldenMinutesService:
         feats["balance_before"] = float(req.balance_before)
 
         # 2. Risk scoring & reason attribution via TreeSHAP
-        risk_score, reason_codes = self.predict_risk(feats)
+        risk_score, reason_codes = self.predict_risk(
+            feats, compute_shap=getattr(req, "explain", True)
+        )
 
         # 3. Policy evaluation
         policy_decision: PolicyDecision = self.policy.evaluate(
@@ -283,8 +330,8 @@ class GoldenMinutesService:
         # 4. Generate alert if hold or verify intervention
         alert_id = None
         if action == "hold":
-            alert_id = f"A{uuid.uuid4().hex[:8].upper()}"
-            decision_id = f"D{uuid.uuid4().hex[:8].upper()}"
+            alert_id = f"A{uuid.uuid4().hex.upper()}"
+            decision_id = f"D{uuid.uuid4().hex.upper()}"
             self.db.create_alert(
                 alert_id=alert_id,
                 decision_id=decision_id,
@@ -304,7 +351,7 @@ class GoldenMinutesService:
                 status=policy_decision.alert_status or "open",
             )
         else:
-            decision_id = f"D{uuid.uuid4().hex[:8].upper()}"
+            decision_id = f"D{uuid.uuid4().hex.upper()}"
 
         latency_ms = (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000.0
 

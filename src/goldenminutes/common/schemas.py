@@ -39,6 +39,9 @@ class HealthResponse(BaseModel):
     model_version: str = "m-0.1.0-stub"
     policy_version: str = "0.1"
     environment: str = "dev"
+    models_loaded: bool = True
+    degraded: bool = False
+    artifact_source: str = "registry"
 
 
 # --- POST /v1/score ---
@@ -56,6 +59,7 @@ class ScoreRequest(BaseModel):
     balance_before: float = Field(ge=0)
     session_seconds: Optional[int] = Field(default=60, ge=0)
     reference: Optional[str] = Field(default=None, max_length=140)
+    explain: bool = True
 
 
 class ScoreResponse(BaseModel):
