@@ -1,0 +1,83 @@
+{
+  "dataset": "transactions.csv",
+  "total_transactions": 100000,
+  "total_fraud": 3211,
+  "total_legit": 96788,
+  "total_errors": 0,
+  "throughput_txns_per_sec": 74.61,
+  "metrics": {
+    "overall_recall": 0.8219,
+    "hold_recall": 0.0505,
+    "value_recall": 0.9382,
+    "false_friction_rate": 0.1248,
+    "total_fraud_value_bdt": 16021441.53,
+    "intercepted_fraud_value_bdt": 15032030.18
+  },
+  "decision_mix": {
+    "allow": {
+      "count": 52335,
+      "percentage": 52.34
+    },
+    "hold": {
+      "count": 1137,
+      "percentage": 1.14
+    },
+    "verify": {
+      "count": 12274,
+      "percentage": 12.27
+    },
+    "warn": {
+      "count": 34253,
+      "percentage": 34.25
+    }
+  },
+  "latency_ms": {
+    "mean": 13.32,
+    "p50": 10.4,
+    "p90": 20.52,
+    "p95": 22.17,
+    "p99": 25.71
+  },
+  "per_scenario": {
+    "mule_account": {
+      "total_fraud": 788,
+      "intercepted": 610,
+      "recall": 0.7741116751269036,
+      "holds": 19,
+      "hold_recall": 0.024111675126903553
+    },
+    "mule_ring": {
+      "total_fraud": 717,
+      "intercepted": 535,
+      "recall": 0.7461645746164575,
+      "holds": 24,
+      "hold_recall": 0.03347280334728033
+    },
+    "relative_emergency_scam": {
+      "total_fraud": 614,
+      "intercepted": 568,
+      "recall": 0.9250814332247557,
+      "holds": 41,
+      "hold_recall": 0.06677524429967427
+    },
+    "agent_collusion": {
+      "total_fraud": 571,
+      "intercepted": 454,
+      "recall": 0.7950963222416813,
+      "holds": 24,
+      "hold_recall": 0.04203152364273205
+    },
+    "account_takeover": {
+      "total_fraud": 521,
+      "intercepted": 472,
+      "recall": 0.9059500959692899,
+      "holds": 54,
+      "hold_recall": 0.1036468330134357
+    }
+  },
+  "model_info": {
+    "version": "m-1.0.0-full",
+    "artifact_source": "registry",
+    "degraded": false
+  }
+}

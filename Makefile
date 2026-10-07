@@ -1,4 +1,4 @@
-.PHONY: setup lint test api ui demo data features train eval format
+.PHONY: setup lint test api ui demo data features train eval format replay
 
 VENV ?= .venv
 PYTHON = $(VENV)/bin/python
@@ -52,4 +52,10 @@ eval:
 demo:
 	@if [ -d "ui" ] && [ -f "ui/package.json" ]; then npm --prefix ui run build; fi
 	$(PYTHON) -m goldenminutes.demo
+
+LIMIT ?= 100000
+
+replay:
+	$(PYTHON) -m goldenminutes.demo.replay_dataset --limit $(LIMIT)
+
 
