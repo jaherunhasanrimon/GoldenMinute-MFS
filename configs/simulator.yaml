@@ -73,3 +73,37 @@ typologies:
 confirmation_lag_hours: 24
 detection_rate: 0.80
 held_out_typology: agent_collusion
+
+# --- Phase 1 (post-judging) realism settings. All values are ASSUMPTIONS (docs/assumptions.md A-P1-*). ---
+realism:
+  # Legitimate confounders that remove single-feature shortcuts.
+  borrowed_device_rate: 0.03        # legit txn made on someone else's phone (family/shared phone)
+  phone_upgrade_wallet_share: 0.06  # wallets that switch to a new phone mid-simulation
+  wallet_emptying_rate: 0.12        # legit sends/cash-outs that drain most of the balance (rent, tuition)
+  legit_card_topup_rate: 0.02       # legit add_money_card events (removes "type"/tenure shortcut)
+  fraud_ussd_rate: 0.15             # fraud channel mix matches legit
+  # Savings-group (somity) hubs: legit high fan-in wallets that pass money through to cash-out.
+  somity_groups_per_1000_customers: 2.5
+  somity_members_min: 8
+  somity_members_max: 20
+  # Victim behaviour: coerced victims use their OWN phone; balance drain is variable.
+  victim_balance_multiplier_min: 1.05
+  victim_balance_multiplier_max: 3.0
+  takeover_attacker_device_prob: 0.7   # else attacker uses remote-access on the victim's own device
+
+# Mule-herding infrastructure shared across typologies (impersonation, mule_ring, sim_swap, card burst).
+networks:
+  per_1000_customers: 1.25
+  mules_min: 6
+  mules_max: 14
+  collectors_min: 1
+  collectors_max: 2
+  herder_devices_min: 1
+  herder_devices_max: 3
+  cashout_agents: 3
+  active_days_min: 18
+  active_days_max: 40
+  forward_to_collector_prob: 0.6
+  herder_device_prob: 0.6
+  onboarding_days_before_min: 1
+  onboarding_days_before_max: 6

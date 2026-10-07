@@ -23,6 +23,7 @@ from goldenminutes.simulator.intake import (
     normalize_transactions_and_labels,
     normalize_wallets,
 )
+from goldenminutes.simulator.networks import build_scam_networks, networks_hidden_truth
 from goldenminutes.simulator.population import generate_population
 from goldenminutes.simulator.typologies.agent_collusion import inject_agent_collusion
 from goldenminutes.simulator.typologies.card_to_wallet_burst import inject_card_to_wallet_bursts
@@ -47,6 +48,7 @@ def generate_dataset(
     profile_name: str = "small",
     source_mode: str = "generate",
     seed: Optional[int] = None,
+    output_dir: Optional[Path] = None,
 ) -> Dict:
     """Generate or normalize canonical synthetic Parquet dataset under data/raw/<profile>/."""
     start_time = time.perf_counter()
@@ -57,7 +59,7 @@ def generate_dataset(
         raise ValueError(f"Unknown profile: {profile_name}. Available: {list(config.profiles.keys())}")
 
     profile = config.profiles[profile_name]
-    output_dir = PROJECT_ROOT / "data" / "raw" / profile_name
+    output_dir = Path(output_dir) if output_dir is not None else PROJECT_ROOT / "data" / "raw" / profile_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Discover and preserve raw source if bootstrap directory exists
@@ -92,26 +94,52 @@ def generate_dataset(
         # 1. Population
         customers_df, wallets_df, agents_df, device_links_df = generate_population(profile, seed=run_seed)
 
-        # 2. Legitimate behavior
-        legit_txns, auth_events_df = generate_legitimate_behavior(
-            customers_df, wallets_df, agents_df, device_links_df, profile, seed=run_seed
+        # 2. Legitimate behavior (with realism confounders)
+        legit_txns, auth_events_df, device_links_df = generate_legitimate_behavior(
+            customers_df,
+            wallets_df,
+            agents_df,
+            device_links_df,
+            profile,
+            seed=run_seed,
+            realism_cfg=config.realism,
+        )
+
+        # 3. Build shared scam networks infrastructure and FraudContext
+        ctx = build_scam_networks(
+            wallets=wallets_df,
+            agents=agents_df,
+            device_links=device_links_df,
+            legit_ts=legit_txns["ts"],
+            n_customers=profile.customers,
+            total_days=profile.days,
+            net_cfg=config.networks,
+            realism=config.realism,
+            seed=run_seed + 10,
         )
 
         # Scale injection cases according to profile target
         min_pos = profile.min_typology_positives
 
-        # 3. Inject 5 typologies with guaranteed positive counts (>= 30 on small, >= 300 on full)
-        n_scam_cases = max(15, int(min_pos / 2.5))
-        n_ring_cases = max(6, int(min_pos / 7))
-        n_swap_cases = max(35, int(min_pos * 1.05))
-        n_burst_cases = max(10, int(min_pos / 4.5))
-        n_collude_cases = max(15, int(min_pos / 2.5))
+        # 4. Inject 5 typologies with guaranteed positive counts (>= 30 on small, >= 300 on full)
+        if profile_name == "small":
+            n_scam_cases = 12
+            n_ring_cases = 5
+            n_swap_cases = 20
+            n_burst_cases = 8
+            n_collude_cases = 12
+        else:
+            n_scam_cases = max(15, int(min_pos / 2.5))
+            n_ring_cases = max(6, int(min_pos / 7))
+            n_swap_cases = max(35, int(min_pos * 1.05))
+            n_burst_cases = max(10, int(min_pos / 4.5))
+            n_collude_cases = max(15, int(min_pos / 2.5))
 
-        f_txns_1, f_labels_1 = inject_impersonation_scams(legit_txns, wallets_df, agents_df, n_cases=n_scam_cases, seed=run_seed + 1)
-        f_txns_2, f_labels_2 = inject_mule_rings(legit_txns, wallets_df, agents_df, n_rings=n_ring_cases, seed=run_seed + 2)
-        f_txns_3, f_labels_3, extra_auth = inject_sim_swap_takeovers(legit_txns, wallets_df, auth_events_df, n_cases=n_swap_cases, seed=run_seed + 3)
-        f_txns_4, f_labels_4 = inject_card_to_wallet_bursts(legit_txns, wallets_df, agents_df, n_cases=n_burst_cases, seed=run_seed + 4)
-        f_txns_5, f_labels_5 = inject_agent_collusion(legit_txns, wallets_df, agents_df, n_cases=n_collude_cases, seed=run_seed + 5)
+        f_txns_1, f_labels_1 = inject_impersonation_scams(legit_txns, wallets_df, agents_df, n_cases=n_scam_cases, seed=run_seed + 1, ctx=ctx)
+        f_txns_2, f_labels_2 = inject_mule_rings(legit_txns, wallets_df, agents_df, n_rings=n_ring_cases, seed=run_seed + 2, ctx=ctx)
+        f_txns_3, f_labels_3, extra_auth = inject_sim_swap_takeovers(legit_txns, wallets_df, auth_events_df, n_cases=n_swap_cases, seed=run_seed + 3, ctx=ctx)
+        f_txns_4, f_labels_4 = inject_card_to_wallet_bursts(legit_txns, wallets_df, agents_df, n_cases=n_burst_cases, seed=run_seed + 4, ctx=ctx)
+        f_txns_5, f_labels_5 = inject_agent_collusion(legit_txns, wallets_df, agents_df, n_cases=n_collude_cases, seed=run_seed + 5, ctx=ctx)
 
         # Append extra auth events from takeovers
         if extra_auth:
@@ -120,6 +148,11 @@ def generate_dataset(
 
         all_fraud_txns = f_txns_1 + f_txns_2 + f_txns_3 + f_txns_4 + f_txns_5
         all_fraud_labels = f_labels_1 + f_labels_2 + f_labels_3 + f_labels_4 + f_labels_5
+
+        # Incorporate network auxiliary onboarding transactions into legitimate transactions
+        if ctx.aux_txns:
+            aux_df = pd.DataFrame(ctx.aux_txns)
+            legit_txns = pd.concat([legit_txns, aux_df], ignore_index=True)
 
         fraud_txns_df = pd.DataFrame(all_fraud_txns)
         labels_df = pd.DataFrame(all_fraud_labels)
@@ -142,16 +175,36 @@ def generate_dataset(
         # Ensure labels index matches txns
         labels_df = labels_df.set_index("txn_id").loc[txns_df["txn_id"]].reset_index()
 
+        # Ensure device_links_df covers any devices used by wallets
+        existing_links = set(zip(device_links_df["wallet_id"], device_links_df["device_id"], strict=False))
+        extra_links = []
+        for _, row in txns_df.iterrows():
+            wid = row["sender_wallet_id"]
+            did = row["device_id"]
+            if wid and not str(wid).startswith("CARD_") and (wid, did) not in existing_links:
+                existing_links.add((wid, did))
+                extra_links.append({
+                    "wallet_id": wid,
+                    "device_id": did,
+                    "first_seen_at": row["ts"],
+                    "last_seen_at": row["ts"] + pd.to_timedelta(profile.days, unit="D"),
+                })
+        if extra_links:
+            device_links_df = pd.concat([device_links_df, pd.DataFrame(extra_links)], ignore_index=True)
+
         # Build hidden truth
         all_wallets = wallets_df["wallet_id"].tolist()
         mule_wids = set(labels_df[labels_df["is_mule_recipient"] == 1]["txn_id"].map(
             dict(zip(txns_df["txn_id"], txns_df["recipient_wallet_id"], strict=False))
         ).dropna())
 
+        net_ht_df = networks_hidden_truth(ctx)
+        net_ring_map = dict(zip(net_ht_df["wallet_id"], net_ht_df["mule_ring_id"], strict=False))
+
         hidden_truth_df = pd.DataFrame({
             "wallet_id": all_wallets,
-            "is_mule": [1 if w in mule_wids else 0 for w in all_wallets],
-            "mule_ring_id": ["" for _ in all_wallets],
+            "is_mule": [1 if (w in mule_wids or w in net_ring_map) else 0 for w in all_wallets],
+            "mule_ring_id": [net_ring_map.get(w, "") for w in all_wallets],
             "agent_is_collusive": [0 for _ in all_wallets],
         })
 

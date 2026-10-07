@@ -103,10 +103,10 @@ def test_monotone_timestamps(small_dataset):
     assert txns["ts"].is_monotonic_increasing, "Transactions are not globally monotonically ordered by ts!"
 
 
-def test_deterministic_generation():
-    # Run small with seed 99 twice and compare sha256
-    res1 = generate_dataset(profile_name="small", seed=99)
-    res2 = generate_dataset(profile_name="small", seed=99)
+def test_deterministic_generation(tmp_path):
+    # Run small with seed 99 twice in isolated directories and compare sha256
+    res1 = generate_dataset(profile_name="small", seed=99, output_dir=tmp_path / "run1")
+    res2 = generate_dataset(profile_name="small", seed=99, output_dir=tmp_path / "run2")
     assert res1["hashes"] == res2["hashes"], "Deterministic generation failed: file hashes differed for identical seed!"
 
 
