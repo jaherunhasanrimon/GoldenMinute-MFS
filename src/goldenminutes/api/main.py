@@ -365,7 +365,7 @@ def create_app() -> FastAPI:
 
     # 3.2 Audit Chain Verification Endpoints
     @app.get("/v1/audit/verify", response_model=AuditVerifyResponse, tags=["Audit"])
-    def verify_audit_trail(role: str = Depends(require_senior_analyst)) -> AuditVerifyResponse:
+    def verify_audit_trail(role: str = Depends(require_analyst)) -> AuditVerifyResponse:
         """Cryptographically verify the entire SHA-256 audit hash chain."""
         is_valid, total, genesis, last, err = service.db.verify_audit_chain()
         return AuditVerifyResponse(
