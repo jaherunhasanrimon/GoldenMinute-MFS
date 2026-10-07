@@ -26,6 +26,16 @@ class AppSettings(BaseSettings):
         default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
         alias="GM_CORS_ORIGINS",
     )
+    gm_jwt_secret: str = Field(
+        default="gm_super_secret_jwt_key_2026_production",
+        alias="GM_JWT_SECRET",
+    )
+    gm_jwt_algorithm: str = Field(default="HS256", alias="GM_JWT_ALGORITHM")
+    gm_access_token_expire_minutes: int = Field(default=60, alias="GM_ACCESS_TOKEN_EXPIRE_MINUTES")
+    gm_refresh_token_expire_days: int = Field(default=7, alias="GM_REFRESH_TOKEN_EXPIRE_DAYS")
+    gm_max_login_attempts: int = Field(default=5, alias="GM_MAX_LOGIN_ATTEMPTS")
+    gm_lockout_duration_minutes: int = Field(default=15, alias="GM_LOCKOUT_DURATION_MINUTES")
+    gm_four_eyes_threshold_bdt: float = Field(default=50000.0, alias="GM_FOUR_EYES_THRESHOLD_BDT")
 
     model_config = SettingsConfigDict(
         env_file=".env",

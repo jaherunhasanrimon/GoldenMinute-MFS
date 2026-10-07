@@ -24,6 +24,8 @@ dependencies = [
     "networkx>=3.2.0",
     "sqlalchemy>=2.0.0",
     "lightgbm>=4.3.0",
+    "pyjwt>=2.8.0",
+    "bcrypt>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -49,4 +51,4 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B"]
-ignore = ["E501"]
+ignore = ["E501", "B008"]

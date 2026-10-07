@@ -223,3 +223,60 @@ class DemoAccount(BaseModel):
 class DemoAccountsResponse(BaseModel):
     senders: List[DemoAccount]
     recipients: List[DemoAccount]
+
+
+# --- Authentication & Audit Chain (Phase 3) ---
+
+
+class UserSummary(BaseModel):
+    user_id: str
+    username: str
+    full_name: str
+    email: str
+    role: str
+    is_active: bool = True
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., min_length=2)
+    password: str = Field(..., min_length=4)
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: Optional[str] = None
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: UserSummary
+
+
+class AuditLogEntry(BaseModel):
+    audit_id: str
+    sequence_number: int
+    prev_hash: str
+    entry_hash: str
+    event_type: str
+    user_id: str
+    resource_type: str
+    resource_id: str
+    action: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+    ts: datetime
+
+
+class AuditVerifyResponse(BaseModel):
+    valid: bool
+    total_records: int
+    genesis_hash: str
+    last_hash: str
+    error: Optional[str] = None
+
+
+class AuditLogListResponse(BaseModel):
+    logs: List[AuditLogEntry]
+    total: int
+    chain_valid: bool
