@@ -2,9 +2,9 @@
 
 **System:** GoldenMinutes — Real-Time Scam and Mule Interception for upay  
 **Document:** `reports/fairness_report.md`  
-**Evaluation Split:** Held-out Test Set ($N = 120,577$ transactions, 308 fraud cases)  
+**Evaluation Split:** Held-out Test Set ($N = 57,689$ transactions, 62 fraud cases)  
 **Champion Model:** Variant D (Fused LightGBM + Isolation Forest + Graph Features)  
-**Date:** 2026-10-03T19:42:24.150665+00:00  
+**Date:** 2026-10-07T05:12:11.670903+00:00  
 
 ---
 
@@ -23,8 +23,8 @@ Every metric is computed strictly on the held-out test split using the Champion 
 
 ## 2. Methodology & Fairness Criteria
 
-- **False-Friction Rate (FFR):** Standard: FFR $\le 1.00\%$ across all subgroups.
-- **Fraud Value Recall:** Standard: High interception parity ($> 95\%$) across all demographic groups.
+- **False-Friction Rate (FFR):** Standard: FFR <= 1.00% across all subgroups.
+- **Fraud Value Recall:** Standard: High interception parity (> 95%) across all demographic groups.
 
 ---
 
@@ -34,26 +34,23 @@ Every metric is computed strictly on the held-out test split using the Champion 
 
 | Subgroup | Total Volume | FFR (%) | Fraud Recall (%) |
 | :--- | :---: | :---: | :---: |
-| **Senior** | 46,332 | **0.00%** | **99.12%** |
-| **Middle** | 58,562 | **0.00%** | **99.17%** |
-| **Young** | 15,641 | **0.00%** | **100.00%** |
-| **Unknown** | 42 | **0.00%** | **100.00%** |
+| **Middle** | 28,018 | **3.03%** | **100.00%** |
+| **Young** | 7,474 | **3.28%** | **93.33%** |
+| **Senior** | 22,197 | **2.90%** | **100.00%** |
 
 ### Geographic Region Slices
 
 | Subgroup | Total Volume | FFR (%) | Fraud Recall (%) |
 | :--- | :---: | :---: | :---: |
-| **Urban** | 53,600 | **0.00%** | **99.19%** |
-| **Semi_urban** | 42,745 | **0.00%** | **98.92%** |
-| **Rural** | 24,190 | **0.00%** | **100.00%** |
-| **Unknown** | 42 | **0.00%** | **100.00%** |
+| **Urban** | 25,640 | **3.05%** | **94.74%** |
+| **Semi_urban** | 20,359 | **2.92%** | **100.00%** |
+| **Rural** | 11,690 | **3.09%** | **100.00%** |
 
 ### Account Tenure Slices
 
 | Subgroup | Total Volume | FFR (%) | Fraud Recall (%) |
 | :--- | :---: | :---: | :---: |
-| **1m+** | 120,535 | **0.00%** | **99.25%** |
-| **<1w** | 42 | **0.00%** | **100.00%** |
+| **1m+** | 57,689 | **3.01%** | **98.39%** |
 
 ---
 

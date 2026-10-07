@@ -4,27 +4,27 @@
   "customers_count": 2000,
   "wallets_count": 2140,
   "agents_count": 40,
-  "total_transactions": 24241,
-  "total_fraud_transactions": 241,
-  "fraud_rate": 0.009941834082752362,
+  "total_transactions": 24329,
+  "total_fraud_transactions": 228,
+  "fraud_rate": 0.00937153191664269,
   "typology_counts": {
     "impersonation_scam": 61,
-    "card_to_wallet_burst": 52,
-    "mule_ring": 48,
-    "agent_collusion": 45,
-    "sim_swap_takeover": 35
+    "sim_swap_takeover": 51,
+    "card_to_wallet_burst": 50,
+    "agent_collusion": 35,
+    "mule_ring": 31
   },
-  "confirmations_count": 87,
-  "duration_seconds": 0.903,
+  "confirmations_count": 30,
+  "duration_seconds": 1.184,
   "hashes": {
-    "hidden_truth.parquet": "78c2d255851e4a5e350de9e9590bcb460c5b39288d8e235604819faf8749ea84",
+    "hidden_truth.parquet": "ecd363970ea22b0c2d8ffe3435274bf9f1018f993817bb30a822cc4773b98400",
     "agents.parquet": "084a1d61e1861659d48e3547c98bd573f202739ee6f37a8297836b517e72d8f1",
-    "device_links.parquet": "ab108de586eb9cf032e455fef24b6dbb6a3cc7fc4718d7cd11a8a72d90366cfe",
-    "labels.parquet": "571bae01e265ac3a8a03e79ca2d055d240253c0c2d13ef9612814499cff368b7",
-    "transactions.parquet": "41632f0b3d0eceb67f0737b6381880384b9f939e3157f281b52be183af0b1815",
+    "device_links.parquet": "c7c491b512745c42bffa76a7c4ec5495ceb171a64b0e9fc885830cc9731c16b9",
+    "labels.parquet": "d16efdff24d9e1c2c39ab28e74efb9abf6253c2b51ddd38db382b38a81559837",
+    "transactions.parquet": "57749c23b2f5f82a3678c7d8639f2d1cb4fda235a9c12f6db3ef93c857b23528",
     "wallets.parquet": "65d97be6c941981c184b724164133ada817a7dfbbe416db64463c6c735c60cc0",
-    "auth_events.parquet": "3d0100801e6433a5d240d0a39a16611e7809c7e4131fa5a8caa33ab7f19891ac",
-    "confirmations.parquet": "750067792c3d496c9656d676b947859de5d1eb6dd3f43c3c046f85f53d3970a9",
+    "auth_events.parquet": "6edc6231ced272c9d6b412b7ae80f19b393863b4051bfee756fae4fcf1908418",
+    "confirmations.parquet": "525f5ab775159b7bd911b718863d303373e83e312bd402d2aa306013063e676c",
     "customers.parquet": "cb0215b316d4acb40135976f29f11dc172a614b9b09c75ce9b4fc3cd82163145"
   }
 }

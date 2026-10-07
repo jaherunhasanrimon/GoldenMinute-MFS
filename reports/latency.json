@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-10-03T19:59:13.694801+00:00",
+  "timestamp": "2026-10-07T05:34:11.100712+00:00",
   "total_requests": 1000,
-  "mean_latency_ms": 10.36,
-  "p50_latency_ms": 10.14,
-  "p90_latency_ms": 10.83,
-  "p95_latency_ms": 11.21,
-  "p99_latency_ms": 13.1,
-  "max_latency_ms": 56.54,
+  "mean_latency_ms": 18.11,
+  "p50_latency_ms": 12.26,
+  "p90_latency_ms": 27.52,
+  "p95_latency_ms": 27.75,
+  "p99_latency_ms": 28.18,
+  "max_latency_ms": 54.29,
   "target_p95_ms": 150.0,
   "p95_under_target": true
 }

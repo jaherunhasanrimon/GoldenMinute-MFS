@@ -2,7 +2,7 @@
 
 **System:** GoldenMinutes — Real-Time Scam and Mule Interception for upay  
 **Document:** `reports/sensitivity_report.md`  
-**Dataset:** Held-out Test Split ($N = 120,577$ transactions, 308 fraud cases)  
+**Dataset:** Held-out Test Split ($N = 57,689$ transactions, 62 fraud cases)  
 **Policy Version:** 0.1  
 **Date:** 2026-10-04  
 
@@ -34,12 +34,12 @@ This sensitivity analysis evaluates GoldenMinutes across three scenarios: conser
 
 | Scenario | Hold Eff | Verify Eff | Total Intercepted BDT |
 | :--- | :---: | :---: | :---: |
-| **Conservative** | 0.75 | 0.40 | **৳3,511,403.34** |
-| **Baseline** | 0.90 | 0.55 | **৳4,213,684.01** |
-| **Optimistic** | 0.98 | 0.70 | **৳4,588,233.70** |
+| **Conservative** | 0.75 | 0.40 | **৳644,682.54** |
+| **Baseline** | 0.90 | 0.55 | **৳784,522.81** |
+| **Optimistic** | 0.98 | 0.70 | **৳864,567.13** |
 
 ---
 
 ## 4. Operational Recommendations for upay
 1. **Deploy Baseline Thresholds:** Maintain baseline effectiveness targets from `configs/policy.yaml`.
-2. **Golden Window SLA:** Ensure analyst queue review latency $< 15\text{ minutes}$ (within the 30-minute cash-out deadline).
+2. **Golden Window SLA:** Ensure analyst queue review latency < 15 minutes (within the 30-minute cash-out deadline).

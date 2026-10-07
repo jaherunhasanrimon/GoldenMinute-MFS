@@ -166,7 +166,7 @@ goldenminutes/
 | Language | Python 3.11+ | Type hints everywhere, `ruff` for lint and format |
 | Data | pandas, numpy, pyarrow | Parquet for raw and processed tables |
 | ML | scikit-learn, LightGBM, SHAP | Pin versions in `pyproject.toml` |
-| Graph | NetworkX | GNN is a stretch goal only |
+| Graph | NetworkX + GraphSAGE (MuleGraphSAGE, `models/gnn.py`) | Phase 1: GNN embeddings now active in Variant E (champion). Pre-trained embeddings cached to `data/processed/<profile>/gnn_embeddings.parquet`. LightGBM must be imported before torch on macOS (documented in `gnn.py`). |
 | API | FastAPI, Pydantic v2, uvicorn | Versioned under `/v1` |
 | Storage | SQLite via SQLAlchemy | Postgres-compatible, switchable by `GM_DB_URL` |
 | Frontend | Vite, React, TypeScript, Tailwind CSS, React Router | Charts: Recharts. Graph view: react-force-graph-2d. Optional openapi-typescript |
@@ -245,8 +245,9 @@ Compute every feature as of `ts`, using only events with timestamps strictly bef
 | Sender | `amount_to_median_ratio` (vs sender's 30-day median, 1 if no history), `sender_txn_count_1h`, `sender_txn_count_24h`, `sender_amount_sum_24h`, `sender_tenure_days`, `balance_drain_ratio`, `hour_of_day`, `is_night` |
 | Pair | `is_first_time_pair`, `pair_history_count` |
 | Device and auth | `new_device_flag`, `minutes_since_pin_reset` (capped), `minutes_since_sim_change` (capped), `session_seconds` |
-| Recipient | `recipient_age_days`, `recipient_owner_type_code` (numeric encoding of `owner_type`), `recipient_unique_senders_1h`, `recipient_unique_senders_24h`, `recipient_first_time_sender_share_24h`, `recipient_inflow_24h`, `recipient_outflow_24h`, `recipient_pass_through_ratio_24h`, `recipient_median_receipt_to_out_minutes` |
-| Graph (7-day window) | `recipient_fan_in_7d`, `recipient_fan_out_7d`, `shared_device_wallet_count`, `component_size_7d` (uses previous day's snapshot), `two_hop_confirmed_mule_share` (reads `confirmations` with `confirmed_at <= ts`, never `labels`) |
+| Recipient | `recipient_age_days`, `recipient_owner_type_code`, `recipient_unique_senders_1h`, `recipient_unique_senders_24h`, `recipient_first_time_sender_share_24h`, `recipient_inflow_24h`, `recipient_outflow_24h`, `recipient_pass_through_ratio_24h`, `recipient_median_receipt_to_out_minutes` |
+| Graph (7-day window) | `recipient_fan_in_7d`, `recipient_fan_out_7d`, `shared_device_wallet_count`, `component_size_7d` (previous day's snapshot), `two_hop_confirmed_mule_share` (reads `confirmations` with `confirmed_at <= ts`, never `labels`) |
+| GNN (Phase 1) | `gnn_recipient_mule_score`, `gnn_sender_mule_score`, `gnn_recipient_emb_0..3` — MuleGraphSAGE 2-layer (hidden 32, emb 4), trained on the same P2P graph using node-level graph-features as input. Embeddings pre-computed once per profile and loaded from `gnn_embeddings.parquet`. |
 
 **Two implementations, one definition:**
 
@@ -263,7 +264,9 @@ Compute every feature as of `ts`, using only events with timestamps strictly bef
 | A | Rules baseline only |
 | B | LightGBM without graph features |
 | C | LightGBM with graph features |
-| D | C plus anomaly score, fused |
+| D | C + anomaly score, fused (logistic stacker) |
+| E | C + GNN embeddings (MuleGraphSAGE) + anomaly score, fused — **live champion** |
+| F | No-op diagnostic: all-zero scores, for a leakage floor check |
 
 **Rules baseline (`rules/baseline.py`, illustrative defaults in config):**
 
@@ -277,7 +280,7 @@ Compute every feature as of `ts`, using only events with timestamps strictly bef
 
 **Anomaly model:** Isolation Forest trained on legitimate training rows, scored as a percentile rank in [0, 1].
 
-**Fusion:** logistic regression on validation predictions, with inputs `logit(p_lgbm)`, `anomaly_score`, and `rules_hit_count`. The output is the final `risk_score`. Keep it transparent and avoid deep stacking.
+**Fusion:** logistic regression on validation predictions, with inputs `logit(p_lgbm)`, `anomaly_score`, and `rules_hit_count`. The output is the final `risk_score`. Keep it transparent and avoid deep stacking. **Do not use `class_weight="balanced"` in the stacker** — the policy engine treats its output as a calibrated probability (expected loss = p × amount) so a prior shift to 50/50 inflates scores at a ~0.5% base rate.
 
 **Registry:** every trained artifact gets a version string and an entry in `models/registry.json` (training window, config hash, metrics). The API loads the active version.
 
@@ -502,7 +505,7 @@ GM_SEED=42
 | P6 UI | Customer, analyst, and metrics screens, plus "Run attack" | The demo script (Section 20) runs end to end without manual fixes |
 | P7 Hardening | Fairness and sensitivity reports, model card, README | All checklist items in Section 16 are ticked or have a written reason |
 
-**Stretch (only after P7):** GNN graph model, adaptive fraudster, SMS or voice channel, optional LLM provider, Docker Compose, Postgres.
+**Stretch (only after P7):** adaptive fraudster, SMS or voice channel, optional LLM provider, Docker Compose, Postgres.
 
 ## 20. Demo script (about 3 minutes)
 

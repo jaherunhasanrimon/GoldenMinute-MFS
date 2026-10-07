@@ -1,49 +1,51 @@
 {
-  "fraud_value_intercepted_bdt": 4213684.008,
-  "false_friction_rate": 0.0,
-  "median_decision_time_ms": 10.14,
-  "p95_decision_time_ms": 11.21,
+  "fraud_value_intercepted_bdt": 784522.811,
+  "false_friction_rate": 0.0301,
+  "median_decision_time_ms": 26.65,
+  "p95_decision_time_ms": 33.15,
+  "champion_variant": "E",
+  "primary_population": [
+    "send_money"
+  ],
   "ablation_table": [
     {
       "variant": "A",
       "name": "Rules baseline",
       "status": "evaluated",
-      "pr_auc": 0.114,
-      "roc_auc": 0.8684,
-      "ffr": 0.0494,
-      "value_weighted_recall": 0.5436,
-      "held_out_recall": 1.0,
-      "precision_at_50": 0.58,
-      "brier_score": 0.0267,
-      "ece": 0.0351,
-      "p50_latency_ms": 1.21,
-      "p95_latency_ms": 1.28,
+      "pr_auc": 0.0754,
+      "roc_auc": 0.7181,
+      "ffr": 0.0355,
+      "value_weighted_recall": 0.1585,
+      "held_out_recall": 0.0,
+      "precision_at_50": 0.14,
+      "brier_score": 0.0079,
+      "ece": 0.0164,
+      "p50_latency_ms": 1.24,
+      "p95_latency_ms": 1.3,
       "typology_recalls": {
-        "agent_collusion": 1.0,
-        "card_to_wallet_burst": 0.058823529411764705,
-        "impersonation_scam": 0.22988505747126436,
-        "mule_ring": 0.11764705882352941,
-        "sim_swap_takeover": 0.4482758620689655
+        "card_to_wallet_burst": 0.0,
+        "impersonation_scam": 0.0,
+        "mule_ring": 0.0,
+        "sim_swap_takeover": 0.3181818181818182
       }
     },
     {
       "variant": "B",
       "name": "LightGBM (no graph)",
       "status": "evaluated",
-      "pr_auc": 0.9935,
-      "roc_auc": 0.9968,
-      "ffr": 0.0,
-      "value_weighted_recall": 0.9897,
-      "held_out_recall": 0.9836,
-      "precision_at_50": 1.0,
-      "brier_score": 0.0,
-      "ece": 0.0,
-      "p50_latency_ms": 0.59,
-      "p95_latency_ms": 0.73,
+      "pr_auc": 0.6355,
+      "roc_auc": 0.9941,
+      "ffr": 0.0657,
+      "value_weighted_recall": 0.9723,
+      "held_out_recall": 0.0,
+      "precision_at_50": 0.68,
+      "brier_score": 0.0006,
+      "ece": 0.0009,
+      "p50_latency_ms": 0.6,
+      "p95_latency_ms": 0.76,
       "typology_recalls": {
-        "agent_collusion": 0.9836065573770492,
         "card_to_wallet_burst": 1.0,
-        "impersonation_scam": 0.9885057471264368,
+        "impersonation_scam": 0.9,
         "mule_ring": 1.0,
         "sim_swap_takeover": 1.0
       }
@@ -52,20 +54,19 @@
       "variant": "C",
       "name": "LightGBM + Graph",
       "status": "evaluated",
-      "pr_auc": 0.9935,
+      "pr_auc": 0.7945,
       "roc_auc": 0.9968,
-      "ffr": 0.0,
-      "value_weighted_recall": 0.9897,
-      "held_out_recall": 0.9836,
-      "precision_at_50": 1.0,
-      "brier_score": 0.0,
-      "ece": 0.0,
-      "p50_latency_ms": 0.6,
+      "ffr": 0.0496,
+      "value_weighted_recall": 0.9895,
+      "held_out_recall": 0.0,
+      "precision_at_50": 0.86,
+      "brier_score": 0.0004,
+      "ece": 0.0005,
+      "p50_latency_ms": 0.61,
       "p95_latency_ms": 0.75,
       "typology_recalls": {
-        "agent_collusion": 0.9836065573770492,
         "card_to_wallet_burst": 1.0,
-        "impersonation_scam": 0.9885057471264368,
+        "impersonation_scam": 0.95,
         "mule_ring": 1.0,
         "sim_swap_takeover": 1.0
       }
@@ -74,88 +75,113 @@
       "variant": "D",
       "name": "Fused (C + Anomaly)",
       "status": "evaluated",
-      "pr_auc": 0.9955,
-      "roc_auc": 0.9999,
-      "ffr": 0.0,
-      "value_weighted_recall": 0.9897,
-      "held_out_recall": 0.9836,
-      "precision_at_50": 1.0,
-      "brier_score": 0.0,
-      "ece": 0.0,
-      "p50_latency_ms": 5.82,
-      "p95_latency_ms": 6.3,
+      "pr_auc": 0.807,
+      "roc_auc": 0.9968,
+      "ffr": 0.0437,
+      "value_weighted_recall": 0.9499,
+      "held_out_recall": 0.0,
+      "precision_at_50": 0.88,
+      "brier_score": 0.0004,
+      "ece": 0.0005,
+      "p50_latency_ms": 5.84,
+      "p95_latency_ms": 8.47,
       "typology_recalls": {
-        "agent_collusion": 0.9836065573770492,
         "card_to_wallet_burst": 1.0,
-        "impersonation_scam": 0.9885057471264368,
+        "impersonation_scam": 0.9,
+        "mule_ring": 0.9473684210526315,
+        "sim_swap_takeover": 1.0
+      }
+    },
+    {
+      "variant": "E",
+      "name": "Fused (C + GNN + Anomaly)",
+      "status": "evaluated",
+      "pr_auc": 0.9135,
+      "roc_auc": 0.9994,
+      "ffr": 0.0301,
+      "value_weighted_recall": 0.9773,
+      "held_out_recall": 0.0,
+      "precision_at_50": 0.96,
+      "brier_score": 0.0003,
+      "ece": 0.0004,
+      "p50_latency_ms": 5.94,
+      "p95_latency_ms": 7.77,
+      "typology_recalls": {
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.95,
         "mule_ring": 1.0,
         "sim_swap_takeover": 1.0
       }
+    },
+    {
+      "variant": "F",
+      "name": "GNN score only (diagnostic)",
+      "status": "evaluated",
+      "pr_auc": 0.1441,
+      "roc_auc": 0.9302,
+      "ffr": 0.1862,
+      "value_weighted_recall": 0.8799,
+      "held_out_recall": 0.0,
+      "precision_at_50": 0.24,
+      "brier_score": 0.0241,
+      "ece": 0.0356,
+      "p50_latency_ms": 0.0,
+      "p95_latency_ms": 0.0,
+      "typology_recalls": {
+        "card_to_wallet_burst": 1.0,
+        "impersonation_scam": 0.6,
+        "mule_ring": 1.0,
+        "sim_swap_takeover": 0.9545454545454546
+      }
     }
   ],
-  "held_out_typology_recall": 0.9836,
+  "held_out_typology_recall": 0.0,
   "typology_recalls": {
-    "agent_collusion": 0.9836065573770492,
     "card_to_wallet_burst": 1.0,
-    "impersonation_scam": 0.9885057471264368,
+    "impersonation_scam": 0.95,
     "mule_ring": 1.0,
     "sim_swap_takeover": 1.0
   },
   "fairness_slices": {
     "age_band": {
-      "senior": {
-        "count": 46332,
-        "ffr": 0.0,
-        "recall": 0.9911504424778761
-      },
       "middle": {
-        "count": 58562,
-        "ffr": 0.0,
-        "recall": 0.9917355371900827
-      },
-      "young": {
-        "count": 15641,
-        "ffr": 0.0,
+        "count": 28018,
+        "ffr": 0.030259726340609482,
         "recall": 1.0
       },
-      "unknown": {
-        "count": 42,
-        "ffr": 0.0,
+      "young": {
+        "count": 7474,
+        "ffr": 0.03284622603566162,
+        "recall": 0.9333333333333333
+      },
+      "senior": {
+        "count": 22197,
+        "ffr": 0.029039094557424358,
         "recall": 1.0
       }
     },
     "region_type": {
       "urban": {
-        "count": 53600,
-        "ffr": 0.0,
-        "recall": 0.9919354838709677
+        "count": 25640,
+        "ffr": 0.030521837555130556,
+        "recall": 0.9473684210526315
       },
       "semi_urban": {
-        "count": 42745,
-        "ffr": 0.0,
-        "recall": 0.989247311827957
-      },
-      "rural": {
-        "count": 24190,
-        "ffr": 0.0,
+        "count": 20359,
+        "ffr": 0.02916154413572658,
         "recall": 1.0
       },
-      "unknown": {
-        "count": 42,
-        "ffr": 0.0,
+      "rural": {
+        "count": 11690,
+        "ffr": 0.03093136834889898,
         "recall": 1.0
       }
     },
     "tenure_bucket": {
       "1m+": {
-        "count": 120535,
-        "ffr": 0.0,
-        "recall": 0.9924812030075187
-      },
-      "<1w": {
-        "count": 42,
-        "ffr": 0.0,
-        "recall": 1.0
+        "count": 57689,
+        "ffr": 0.03012476790393392,
+        "recall": 0.9838709677419355
       }
     }
   },
@@ -164,21 +190,34 @@
       "effectiveness_scenario": "conservative",
       "hold_eff": 0.75,
       "verify_eff": 0.4,
-      "intercepted_bdt": 3511403.34
+      "intercepted_bdt": 644682.5425
     },
     {
       "effectiveness_scenario": "baseline",
       "hold_eff": 0.9,
       "verify_eff": 0.55,
-      "intercepted_bdt": 4213684.008
+      "intercepted_bdt": 784522.811
     },
     {
       "effectiveness_scenario": "optimistic",
       "hold_eff": 0.98,
       "verify_eff": 0.7,
-      "intercepted_bdt": 4588233.697600001
+      "intercepted_bdt": 864567.1342000001
     }
   ],
-  "total_scored": 120577,
-  "total_alerts": 306
+  "other_types": {
+    "types": [
+      "add_money_card",
+      "cash_in",
+      "cash_out",
+      "merchant_pay"
+    ],
+    "transactions": 62521,
+    "fraud": 79,
+    "champion_pr_auc": 0.7172,
+    "champion_ffr": 0.0193,
+    "champion_value_recall": 1.0
+  },
+  "total_scored": 57689,
+  "total_alerts": 826
 }
